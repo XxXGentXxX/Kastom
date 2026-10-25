@@ -26,6 +26,7 @@ public sealed class AudioModule : IKastomModule
 
     // Пишеться з фонового потоку (Start/Stop), читається в потоці інтерфейсу (дії, клік по значку).
     private volatile bool _running;
+    private int _startGeneration;
 
     /// <summary>Спільний стан модуля; для тестів.</summary>
     internal MixerHost Host => _host!;
@@ -69,6 +70,7 @@ public sealed class AudioModule : IKastomModule
     {
         var context = _context!;
         var host = _host!;
+        var generation = Interlocked.Increment(ref _startGeneration);
 
         try
         {
@@ -86,7 +88,9 @@ public sealed class AudioModule : IKastomModule
         catch
         {
             // Лаунчер кличе StopAsync лише після успішного старту: тайм-аут чи збій тут прибираємо самі.
-            await AbortStartAsync(context, host).ConfigureAwait(false);
+            // Запуск, що довершився вже після тайм-ауту, коли модуль увімкнули знову, чужого не прибирає.
+            if (generation == Volatile.Read(ref _startGeneration)) await AbortStartAsync(context, host).ConfigureAwait(false);
+            else context.Log.Warn("Звук: запізнілий запуск завершився після нового — прибирати нічого.");
             throw;
         }
 

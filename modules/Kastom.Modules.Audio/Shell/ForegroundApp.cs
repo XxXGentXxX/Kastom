@@ -22,6 +22,8 @@ internal sealed class ForegroundApp : IForegroundApp
     private const uint GwHwndNext = 2;
     private const int GwlExStyle = -20;
     private const long WsExToolWindow = 0x80;
+    private const long WsExTransparent = 0x20;
+    private const long WsExNoActivate = 0x08000000;
     private const int DwmwaCloaked = 14;
 
     // Запобіжник від зациклення, якщо порядок вікон змінюється, поки ми його обходимо.
@@ -123,7 +125,8 @@ internal sealed class ForegroundApp : IForegroundApp
                 ProcessOf(window),
                 IsWindowVisible(window),
                 IsIconic(window),
-                (exStyle & WsExToolWindow) != 0,
+                // Прозорі накладки (оверлеї відеокарти, лічильники FPS) і вікна, що не беруть фокус, — теж не «програма перед очима».
+                (exStyle & (WsExToolWindow | WsExTransparent | WsExNoActivate)) != 0,
                 cloaked);
         }
     }
