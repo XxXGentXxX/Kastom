@@ -22,6 +22,7 @@ public sealed class AudioModule : IKastomModule
     private MixerHost? _host;
     private AudioTrayIcons? _tray;
     private MixerFlyout? _flyout;
+    private bool _fake;
 
     /// <summary>Спільний стан модуля; для тестів.</summary>
     internal MixerHost Host => _host!;
@@ -34,8 +35,9 @@ public sealed class AudioModule : IKastomModule
         IAudioBackend backend;
         if (Environment.GetEnvironmentVariable(FakeEnvironmentVariable) == "1")
         {
-            context.Log.Info("Звук: фальшивий бекенд (KASTOM_AUDIO_FAKE=1).");
+            context.Log.Info("Звук: фальшивий бекенд (KASTOM_AUDIO_FAKE=1), значків у треї немає.");
             backend = FakeAudioBackend.CreateDemo();
+            _fake = true;
         }
         else
         {
@@ -66,12 +68,18 @@ public sealed class AudioModule : IKastomModule
         var host = _host!;
 
         await host.Backend.StartAsync(cancellationToken).ConfigureAwait(false);
-        await context.Ui.InvokeAsync(() =>
+
+        // Фальшивий звук — для знімків і пісочниці: справжні значки біля годинника з вигаданим станом лише плутали б.
+        if (!_fake)
         {
-            _tray?.Dispose();
-            _tray = new AudioTrayIcons(host, ToggleMixer, ShowMixer);
-            _tray.ApplySettings();
-        }).ConfigureAwait(false);
+            await context.Ui.InvokeAsync(() =>
+            {
+                _tray?.Dispose();
+                _tray = new AudioTrayIcons(host, ToggleMixer, ShowMixer);
+                _tray.ApplySettings();
+            }).ConfigureAwait(false);
+        }
+
         context.Log.Info("Звук: модуль запущено.");
     }
 

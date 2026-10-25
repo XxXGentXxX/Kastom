@@ -185,10 +185,21 @@ internal sealed class DeviceCard : Border
         else
         {
             // «Системні звуки» завжди останні, решта — як у знімку.
-            var ordered = device.Apps.Where(a => !a.IsSystemSounds).Concat(device.Apps.Where(a => a.IsSystemSounds)).ToList();
+            var visible = VisibleApps(device).ToList();
+            var ordered = visible.Where(a => !a.IsSystemSounds).Concat(visible.Where(a => a.IsSystemSounds)).ToList();
             PanelSync.Apply(_appsPanel, _apps, ordered, a => a.Key, a => new AppRow(_ctx, a), (row, a) => row.Update(a));
         }
     }
+
+    /// <summary>
+    /// Програми, які показуємо під пристроєм. Windows тримає неактивний сеанс програми на кожному пристрої, куди та
+    /// колись виводила звук (на ПК з трьома виходами Discord і «Системні звуки» стояли б під усіма трьома), тож під
+    /// неосновним пристроєм — лише те, що зараз звучить або направлене туди вручну.
+    /// </summary>
+    internal static IEnumerable<AudioApp> VisibleApps(AudioDevice device) =>
+        device.IsDefault
+            ? device.Apps
+            : device.Apps.Where(a => a.RoutedDeviceId == device.Id || (a.IsActive && !a.IsSystemSounds));
 
     /// <summary>Індикатори рівня цієї картки (пристрій і його програми).</summary>
     public IEnumerable<LevelMeter> Meters => _apps.Values.Select(a => a.Row.Meter).Prepend(Row.Meter);
