@@ -102,9 +102,21 @@ Kastom.exe --data-dir <тимчасова тека> --test-screen -1920,-104,192
 
 ## Випуски (стан на 2026-10-25)
 
-Репозиторій публічний (MIT). Опубліковано: `demo-v1.0.0`, лаунчер `v0.1.0`, `v0.1.1` і `v0.1.2`; каталог —
-`catalog/catalog.json` у main (через https://raw.githubusercontent.com/XxXGentXxX/Kastom/main/catalog/catalog.json).
-Друзі ставлять `Kastom-win-Setup.exe` з https://github.com/XxXGentXxX/Kastom/releases/latest.
+Репозиторій публічний (MIT). Опубліковано: `demo-v1.0.0`, лаунчер `v0.1.0`–`v0.1.3`, «Звук» `audio-v1.0.0`–`audio-v1.2.1`;
+каталог — `catalog/catalog.json` у main (через https://raw.githubusercontent.com/XxXGentXxX/Kastom/main/catalog/catalog.json).
+Друзі ставлять `Kastom-win-Setup.exe` з https://github.com/XxXGentXxX/Kastom/releases/latest — тому релізи модулів
+створюються з `--latest=false` (так робить `publish-module.ps1`), і «Latest» завжди лишається за релізом лаунчера.
+
+- **Версія збірки Kastom.Sdk заморожена на 0.1.3.0** (`src/Kastom.Sdk/Kastom.Sdk.csproj`) і не йде за версією
+  лаунчера. Модуль посилається на SDK тієї версії, з якою його зібрано, а .NET не підставляє старішу збірку: «Звук» 1.2.0
+  (SDK 0.1.3) не завантажився в лаунчері 0.1.2 — «немає типу Kastom.Modules.Audio.AudioModule». Тож модулі, зібрані
+  відтепер, мають `minLauncherVersion` ≥ 0.1.3; тести `SdkVersionTests` і `ManifestMatchesContract` це стережуть.
+- **Кеш raw.githubusercontent.com** (до ~5 хв) може одразу після публікації віддати новий підпис зі старим каталогом.
+  Лаунчер тоді відкидає саме цю спробу, лишає попередній каталог і повторює за годину. Перевіряти щойно опублікований
+  каталог — за адресою коміту (`…/Kastom/<sha>/catalog/catalog.json`), а не `main`.
+- **Порядок випуску лаунчера:** спершу `gh release edit vX.Y.Z --draft=false` і перевірка, що реліз публічний, лише потім
+  пуш каталогу. 2026-10-25 при випуску 0.1.3 чернетку не опублікувала помилкова команда, і близько хвилини каталог
+  вказував на ще закритий реліз (лаунчери просто повторять спробу).
 
 - **Каталог — точні байти.** Підпис покриває байти `catalog.json` (з CRLF, як їх пише `kastom-catalog`), тож
   `.gitattributes` має `catalog/** -text`, а `publish-module.ps1` відмовляє без цього атрибута. Без нього git зберіг
