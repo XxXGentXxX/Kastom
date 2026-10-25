@@ -29,6 +29,9 @@ public sealed class CatalogFetchResult
     /// <summary>Вміст catalog.json.sig; лише для Ok.</summary>
     public string? Signature { get; init; }
 
+    /// <summary>ETag відповіді сервера; лише для Ok. Джерело запам'ятовує його, лише коли каталог прийнято (<see cref="ICatalogSource.MarkAccepted"/>).</summary>
+    public string? ETag { get; init; }
+
     public string? Error { get; init; }
 }
 
@@ -40,6 +43,9 @@ public interface ICatalogSource
 
     /// <summary>Отримати й перевірити каталог (підпис і вміст).</summary>
     Task<CatalogFetchResult> FetchAsync(CancellationToken cancellationToken);
+
+    /// <summary>Каталог прийнято: джерело може запам'ятати ETag.</summary>
+    void MarkAccepted(CatalogFetchResult result) { }
 }
 
 /// <summary>Останній перевірений каталог з кешем на диску.</summary>

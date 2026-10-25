@@ -35,8 +35,9 @@ public sealed class LauncherServices : IDisposable
 
         StateStore = new JsonLauncherStateStore(paths);
         Ui = new WpfUiDispatcher();
-        Notifications = new OsdNotificationService();
-        Autostart = new AutostartService();
+        Screens = new ScreenPolicy(options.TestScreen);
+        Notifications = new OsdNotificationService(Screens);
+        Autostart = new AutostartService(useRegistry: options.DataDirectory is null);
 
         var verifier = new CatalogVerifier(KastomTrust.CatalogPublicKey);
         ICatalogSource source;
@@ -58,9 +59,10 @@ public sealed class LauncherServices : IDisposable
         Modules = new ModuleManager(
             paths, StateStore, Catalog, Installer, Actions, Notifications, Ui,
             id => new SafeLogger(new FileLogger(paths, id)), LauncherVersion);
-        Updater = new VelopackLauncherUpdater(Catalog, LauncherVersion, Log, shutdownForUpdate);
+        // Пісочниця (--data-dir) може працювати з exe встановленого лаунчера: оновлення зачепило б справжню копію.
+        Updater = new VelopackLauncherUpdater(Catalog, LauncherVersion, Log, shutdownForUpdate, selfUpdateAllowed: options.DataDirectory is null);
         Updates = new UpdateService(Catalog, Modules, StateStore, Updater, Log, TimeSpan.FromHours(1));
-        Widgets = new WidgetHost(StateStore, Modules, () => new ModulesQuickView(Modules, Actions, openMainWindow));
+        Widgets = new WidgetHost(StateStore, Modules, Screens, Log, () => new ModulesQuickView(Modules, Actions, openMainWindow));
     }
 
     public LaunchOptions Options { get; }
@@ -83,6 +85,9 @@ public sealed class LauncherServices : IDisposable
     public INotificationService Notifications { get; }
 
     public AutostartService Autostart { get; }
+
+    /// <summary>Де відкривати вікна й чи можна брати фокус (--test-screen).</summary>
+    public ScreenPolicy Screens { get; }
 
     /// <summary>Адреса каталогу (або локальна папка розробника) для показу в налаштуваннях.</summary>
     public string CatalogDescription { get; }

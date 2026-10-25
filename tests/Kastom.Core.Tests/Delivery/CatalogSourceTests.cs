@@ -10,6 +10,7 @@ namespace Kastom.Core.Tests.Delivery;
 public class CatalogSourceTests
 {
     private static readonly Uri CatalogUrl = new("https://example.com/catalog/catalog.json");
+    private static readonly DateTimeOffset T0 = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
     public async Task FileSource_RoundTrip_ReturnsVerifiedCatalog()
@@ -79,12 +80,84 @@ public class CatalogSourceTests
         var source = new HttpCatalogSource(new HttpClient(handler), CatalogUrl, kit.Verifier);
 
         var first = await source.FetchAsync(CancellationToken.None);
+        source.MarkAccepted(first); // ETag запам'ятовується лише для прийнятого каталогу
         var second = await source.FetchAsync(CancellationToken.None);
 
         Assert.Equal(CatalogFetchStatus.Ok, first.Status);
+        Assert.Equal("\"v1\"", first.ETag);
         Assert.Equal("alpha", first.Catalog!.Modules.Single().Id);
         Assert.Equal(CatalogFetchStatus.NotModified, second.Status);
         Assert.Contains(handler.Requests, r => r.RequestUri!.AbsolutePath == "/catalog/catalog.json.sig");
+    }
+
+    [Fact]
+    public async Task HttpSource_WithoutMarkAccepted_DoesNotSendEtag()
+    {
+        using var kit = new DeliveryKit();
+        var server = new EtagServer(kit, Catalog("alpha", T0), "\"v1\"");
+        var source = new HttpCatalogSource(new HttpClient(new FuncHandler(server.Respond)), CatalogUrl, kit.Verifier);
+
+        await source.FetchAsync(CancellationToken.None);
+        var second = await source.FetchAsync(CancellationToken.None);
+
+        Assert.Equal(CatalogFetchStatus.Ok, second.Status);
+        Assert.Equal<string?>([null, null], server.IfNoneMatch);
+    }
+
+    [Fact]
+    public async Task Service_AcceptedCatalog_NextRequestSendsItsEtag()
+    {
+        using var kit = new DeliveryKit();
+        var server = new EtagServer(kit, Catalog("alpha", T0), "\"v1\"");
+        var service = new CatalogService(
+            new HttpCatalogSource(new HttpClient(new FuncHandler(server.Respond)), CatalogUrl, kit.Verifier), kit.Verifier, kit.Paths, kit.Log);
+
+        var first = await service.RefreshAsync(CancellationToken.None);
+        var second = await service.RefreshAsync(CancellationToken.None);
+
+        Assert.Equal(CatalogFetchStatus.Ok, first.Status);
+        Assert.Equal(CatalogFetchStatus.NotModified, second.Status);
+        Assert.Equal<string?>([null, "\"v1\""], server.IfNoneMatch);
+    }
+
+    [Fact]
+    public async Task Service_RollbackCatalog_DoesNotReplaceEtagOfAcceptedOne()
+    {
+        using var kit = new DeliveryKit();
+        var server = new EtagServer(kit, Catalog("alpha", T0), "\"v1\"");
+        var service = new CatalogService(
+            new HttpCatalogSource(new HttpClient(new FuncHandler(server.Respond)), CatalogUrl, kit.Verifier), kit.Verifier, kit.Paths, kit.Log);
+        await service.RefreshAsync(CancellationToken.None);
+
+        server.Set(Catalog("old", T0.AddMinutes(-1)), "\"v2\"");
+        var rollback = await service.RefreshAsync(CancellationToken.None);
+        await service.RefreshAsync(CancellationToken.None);
+
+        Assert.Equal(CatalogFetchStatus.Failed, rollback.Status);
+        Assert.Equal("alpha", service.Current!.Modules.Single().Id);
+        // Другий і третій запити шлють ETag прийнятого каталогу, а не відкинутого.
+        Assert.Equal<string?>([null, "\"v1\"", "\"v1\""], server.IfNoneMatch);
+    }
+
+    [Fact]
+    public async Task Service_RollbackCatalogAfterRestart_NextRequestSendsNoEtag()
+    {
+        using var kit = new DeliveryKit();
+        var first = new EtagServer(kit, Catalog("alpha", T0), "\"v1\"");
+        await new CatalogService(
+                new HttpCatalogSource(new HttpClient(new FuncHandler(first.Respond)), CatalogUrl, kit.Verifier), kit.Verifier, kit.Paths, kit.Log)
+            .RefreshAsync(CancellationToken.None);
+
+        // Після перезапуску джерело нічого не пам'ятає, а прийнятий каталог береться з кешу.
+        var server = new EtagServer(kit, Catalog("old", T0.AddMinutes(-1)), "\"v2\"");
+        var restarted = new CatalogService(
+            new HttpCatalogSource(new HttpClient(new FuncHandler(server.Respond)), CatalogUrl, kit.Verifier), kit.Verifier, kit.Paths, kit.Log);
+        var rollback = await restarted.RefreshAsync(CancellationToken.None);
+        await restarted.RefreshAsync(CancellationToken.None);
+
+        Assert.Equal(CatalogFetchStatus.Failed, rollback.Status);
+        Assert.Equal("alpha", restarted.Current!.Modules.Single().Id);
+        Assert.Equal<string?>([null, null], server.IfNoneMatch);
     }
 
     [Fact]
@@ -213,6 +286,37 @@ public class CatalogSourceTests
         var service = new CatalogService(new FakeSource(CatalogFetchStatus.Failed), kit.Verifier, kit.Paths, kit.Log);
 
         Assert.Null(service.Current);
+    }
+
+    private static byte[] Catalog(string id, DateTimeOffset at) => DeliveryKit.CatalogBytes([DeliveryKit.PlainEntry(id)], generatedAt: at);
+
+    /// <summary>Сервер каталогу з ETag: відповідає 304 на збіг If-None-Match і записує, що прийшло в запитах на catalog.json.</summary>
+    private sealed class EtagServer(DeliveryKit kit, byte[] json, string etag)
+    {
+        private byte[] _json = json;
+        private string _etag = etag;
+
+        public List<string?> IfNoneMatch { get; } = [];
+
+        public void Set(byte[] newJson, string newEtag)
+        {
+            _json = newJson;
+            _etag = newEtag;
+        }
+
+        public HttpResponseMessage Respond(HttpRequestMessage request)
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sig", StringComparison.Ordinal))
+                return new HttpResponseMessage { Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(kit.Sign(_json))) };
+
+            var sent = request.Headers.TryGetValues("If-None-Match", out var values) ? values.Single() : null;
+            IfNoneMatch.Add(sent);
+            if (sent == _etag) return new HttpResponseMessage(HttpStatusCode.NotModified);
+
+            var response = new HttpResponseMessage { Content = new ByteArrayContent(_json) };
+            response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue(_etag);
+            return response;
+        }
     }
 
     private sealed class FakeSource(CatalogFetchStatus status, bool allowsFileUrls = false) : ICatalogSource

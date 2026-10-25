@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Kastom.Modules.Template</RootNamespace>
+    <!-- Плагін: збірка готує deps.json для завантаження в окремий AssemblyLoadContext. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kastom.Sdk не копіюється в модуль: модуль мусить бачити ту саму збірку, що й лаунчер. -->
+    <ProjectReference Include="..\..\src\Kastom.Sdk\Kastom.Sdk.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="module.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

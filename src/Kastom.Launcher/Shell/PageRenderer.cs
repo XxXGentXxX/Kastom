@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Kastom.Core.Models;
 using Kastom.Launcher.Resources;
 using Kastom.Launcher.Services;
 using Kastom.Launcher.Widgets;
@@ -21,7 +22,15 @@ public static class PageRenderer
         ("launcher", NavPage.Launcher),
     ];
 
-    private static readonly (int Width, int Height)[] Sizes = [(900, 600), (1600, 1000)];
+    /// <summary>
+    /// Розміри вікна в DIP і масштаб екрана. 1280×688 при 150 % і 1536×824 при 125 % — уся робоча область монітора
+    /// 1920×1080 за такого масштабу: так видно, чи вміщається сторінка. Розкладка лишається в DIP (округлення
+    /// за 96 dpi), масштаб лише дає більше пікселів на знімку.
+    /// </summary>
+    private static readonly (int Width, int Height, double Scale)[] Sizes =
+        [(900, 600, 1.0), (1600, 1000, 1.0), (1536, 824, 1.25), (1280, 688, 1.5)];
+
+    private static readonly (string Name, LauncherTheme Theme)[] Themes = [("light", LauncherTheme.Light), ("dark", LauncherTheme.Dark)];
 
     /// <summary>Повертає код виходу: 0 — усе збережено.</summary>
     public static async Task<int> RunAsync(LauncherServices services, string outputDirectory)
@@ -38,36 +47,41 @@ public static class PageRenderer
             await InstallCatalogModulesAsync(services, outputDirectory);
         }
 
-        var window = new MainWindow(services, () => { });
-        PlaceOffScreen(window, Sizes.Max(size => size.Width));
-        window.Show();
-
-        foreach (var (width, height) in Sizes)
+        foreach (var (themeName, theme) in Themes)
         {
-            window.Width = width;
-            window.Height = height;
+            LauncherThemes.Apply(theme);
+            var window = new MainWindow(services, () => { });
+            PlaceOffScreen(window, Sizes.Max(size => size.Width));
+            window.Show();
 
-            foreach (var (name, page) in Pages)
+            foreach (var (width, height, scale) in Sizes)
             {
-                window.NavigateTo(page);
-                failures += await SaveWindowAsync(dispatcher, window, Path.Combine(outputDirectory, $"{name}-{width}x{height}.png"), name);
+                window.Width = width;
+                window.Height = height;
+                var suffix = $"{width}x{height}{(scale == 1.0 ? "" : $"@{scale * 100:0}")}-{themeName}";
+
+                foreach (var (name, page) in Pages)
+                {
+                    window.NavigateTo(page);
+                    failures += await SaveWindowAsync(dispatcher, window, scale, Path.Combine(outputDirectory, $"{name}-{suffix}.png"), name);
+                }
+
+                if (FirstModuleId(services) is { } moduleId)
+                {
+                    window.OpenModulePage(moduleId);
+                    failures += await SaveWindowAsync(dispatcher, window, scale, Path.Combine(outputDirectory, $"module-{moduleId}-{suffix}.png"), moduleId);
+                }
             }
 
-            if (FirstModuleId(services) is { } moduleId)
-            {
-                window.OpenModulePage(moduleId);
-                failures += await SaveWindowAsync(dispatcher, window, Path.Combine(outputDirectory, $"module-{moduleId}-{width}x{height}.png"), moduleId);
-            }
+            window.Close();
+
+            failures += await SaveContentAsync(
+                dispatcher, () => new ModulesQuickView(services.Modules, services.Actions, _ => { }),
+                Path.Combine(outputDirectory, $"quickpanel-340x480-{themeName}.png"), "quickpanel");
+            failures += await SaveContentAsync(
+                dispatcher, () => new ModulesQuickView(services.Modules, services.Actions, _ => { }),
+                Path.Combine(outputDirectory, $"widget-340x480@150-{themeName}.png"), "widget", 1.5);
         }
-
-        window.Close();
-
-        failures += await SaveContentAsync(
-            dispatcher, () => new ModulesQuickView(services.Modules, services.Actions, _ => { }),
-            Path.Combine(outputDirectory, "quickpanel-340x480.png"), "quickpanel");
-        failures += await SaveContentAsync(
-            dispatcher, () => new ModulesQuickView(services.Modules, services.Actions, _ => { }),
-            Path.Combine(outputDirectory, "widget-340x480.png"), "widget");
 
         return failures == 0 ? 0 : 1;
     }
@@ -154,13 +168,13 @@ public static class PageRenderer
         await dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
     }
 
-    private static async Task<int> SaveWindowAsync(Dispatcher dispatcher, Window window, string path, string label)
+    private static async Task<int> SaveWindowAsync(Dispatcher dispatcher, Window window, double scale, string path, string label)
     {
         await SettleAsync(dispatcher);
         try
         {
             window.UpdateLayout();
-            SavePng(window.Background, (FrameworkElement)window.Content, path);
+            SavePng(window.Background, (FrameworkElement)window.Content, path, scale);
             return 0;
         }
         catch (Exception exception)
@@ -170,7 +184,7 @@ public static class PageRenderer
         }
     }
 
-    private static async Task<int> SaveContentAsync(Dispatcher dispatcher, Func<FrameworkElement> create, string path, string label)
+    private static async Task<int> SaveContentAsync(Dispatcher dispatcher, Func<FrameworkElement> create, string path, string label, double scale = 1.0)
     {
         try
         {
@@ -187,7 +201,7 @@ public static class PageRenderer
             host.Show();
             await SettleAsync(dispatcher);
             host.UpdateLayout();
-            SavePng(host.Background, (FrameworkElement)host.Content, path);
+            SavePng(host.Background, (FrameworkElement)host.Content, path, scale);
             host.Close();
             return 0;
         }
@@ -198,8 +212,11 @@ public static class PageRenderer
         }
     }
 
-    /// <summary>Знімок елемента на тлі вікна, у логічних пікселях (96 dpi): розмір файлу збігається з розміром у назві.</summary>
-    private static void SavePng(Brush background, FrameworkElement content, string path)
+    /// <summary>
+    /// Знімок елемента на тлі вікна. При масштабі 1 розмір файлу збігається з розміром у назві (96 dpi);
+    /// при 125–150 % — більше фізичних пікселів на ту саму розкладку, як на екрані з таким масштабом.
+    /// </summary>
+    private static void SavePng(Brush background, FrameworkElement content, string path, double scale)
     {
         var width = (int)Math.Ceiling(content.ActualWidth);
         var height = (int)Math.Ceiling(content.ActualHeight);
@@ -213,7 +230,8 @@ public static class PageRenderer
                 null, area);
         }
 
-        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        var bitmap = new RenderTargetBitmap(
+            (int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
         bitmap.Render(visual);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

@@ -5,7 +5,9 @@ using System.Windows.Threading;
 using Kastom.Core.Abstractions;
 using Kastom.Core.Models;
 using Kastom.Launcher.Resources;
+using Kastom.Launcher.Services;
 using Kastom.Launcher.Settings;
+using Kastom.Sdk.Services;
 
 namespace Kastom.Launcher.Widgets;
 
@@ -21,16 +23,27 @@ public sealed class WidgetHost
 
     private readonly ILauncherStateStore _state;
     private readonly IModuleManager _modules;
+    private readonly ScreenPolicy _screens;
+    private readonly IModuleLogger _log;
     private readonly Func<FrameworkElement> _createModulesQuickView;
     private readonly Dictionary<string, WidgetWindow> _windows = new();
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _saveTimer;
+    private DesktopLayer? _desktopLayer;
     private bool _restored;
+    private bool _closed;
 
-    public WidgetHost(ILauncherStateStore state, IModuleManager modules, Func<FrameworkElement> createModulesQuickView)
+    public WidgetHost(
+        ILauncherStateStore state,
+        IModuleManager modules,
+        ScreenPolicy screens,
+        IModuleLogger log,
+        Func<FrameworkElement> createModulesQuickView)
     {
         _state = state;
         _modules = modules;
+        _screens = screens;
+        _log = log;
         _createModulesQuickView = createModulesQuickView;
         _dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
 
@@ -55,9 +68,15 @@ public sealed class WidgetHost
 
     public void Show(string widgetKey)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         if (_windows.TryGetValue(widgetKey, out var existing))
         {
-            existing.Activate();
+            // Віджет на шарі столу фокус не бере: інакше Win+D знову віддав би фокус йому й не повернув вікна.
+            if (_screens.MayActivate && !_state.State.WidgetsOnDesktop) existing.Activate();
             return;
         }
 
@@ -101,9 +120,54 @@ public sealed class WidgetHost
         }
     }
 
-    /// <summary>Закрити всі вікна, не міняючи Visible: при наступному запуску вони відкриються знову.</summary>
+    public bool OnDesktop => _state.State.WidgetsOnDesktop;
+
+    /// <summary>Увімкнути чи вимкнути шар робочого столу (🟡): відкриті віджети перевідкриваються з новим власником.</summary>
+    public void SetOnDesktop(bool onDesktop)
+    {
+        if (_state.State.WidgetsOnDesktop == onDesktop)
+        {
+            return;
+        }
+
+        _state.State.WidgetsOnDesktop = onDesktop;
+        var keys = _windows.Keys.ToList();
+        foreach (var key in keys)
+        {
+            CloseKeepingVisible(key);
+        }
+
+        SaveNow();
+        foreach (var key in keys)
+        {
+            if (!Open(key))
+            {
+                VisibilityChanged?.Invoke(this, key);
+            }
+        }
+
+        if (!onDesktop)
+        {
+            _desktopLayer?.Dispose();
+            _desktopLayer = null;
+        }
+    }
+
+    /// <summary>
+    /// Вихід: закрити всі вікна, не міняючи Visible, — при наступному запуску вони відкриються знову.
+    /// Після цього хост нічого не відкриває сам: модулі, що зупиняються слідом, не повернуть віджети на екран.
+    /// </summary>
     public void CloseAll()
     {
+        _closed = true;
+        _restored = false;
+        if (_desktopLayer is not null)
+        {
+            _desktopLayer.ShellRestarted -= OnShellRestarted;
+            _desktopLayer.Dispose();
+            _desktopLayer = null;
+        }
+
         var keys = _windows.Keys.ToList();
         foreach (var key in keys)
         {
@@ -127,6 +191,11 @@ public sealed class WidgetHost
             return true;
         }
 
+        if (_closed)
+        {
+            return false;
+        }
+
         if (!TryResolve(key, out var spec))
         {
             return false;
@@ -146,7 +215,9 @@ public sealed class WidgetHost
         var hasPlacement = placement is not null
             && double.IsFinite(placement.Left) && double.IsFinite(placement.Top)
             && double.IsFinite(placement.Width) && double.IsFinite(placement.Height)
-            && placement.Width > 0 && placement.Height > 0;
+            && placement.Width > 0 && placement.Height > 0
+            // Режим перевірки: місце поза тестовою областю (з минулих запусків) не беремо, щоб не з'явитися на чужому екрані.
+            && (!_screens.IsTestScreen || _screens.WorkArea.Contains(new Rect(placement.Left, placement.Top, placement.Width, placement.Height)));
 
         var width = hasPlacement ? placement!.Width : spec.Width;
         var height = hasPlacement ? placement!.Height : spec.Height;
@@ -158,13 +229,13 @@ public sealed class WidgetHost
         else
         {
             // Нове вікно: у верхньому правому куті робочої області, кожне наступне трохи нижче-лівіше.
-            var area = SystemParameters.WorkArea;
+            var area = _screens.WorkArea;
             var shift = _windows.Count % 8 * 28;
             left = area.Right - width - 24 - shift;
             top = area.Top + 24 + shift;
         }
 
-        (left, top, width, height) = Clamp(left, top, width, height);
+        (left, top, width, height) = Clamp(left, top, width, height, _screens.IsTestScreen ? _screens.WorkArea : null);
 
         var window = new WidgetWindow(spec.Title, content)
         {
@@ -175,6 +246,11 @@ public sealed class WidgetHost
             Height = height,
             Tag = key,
         };
+        if (_state.State.WidgetsOnDesktop)
+        {
+            AttachToDesktop(window, key);
+        }
+
         window.Closed += OnWindowClosed;
         window.PlacementChanged += OnWindowPlacementChanged;
         _windows[key] = window;
@@ -188,6 +264,73 @@ public sealed class WidgetHost
         window.TrackChanges = true;
         VisibilityChanged?.Invoke(this, key);
         return true;
+    }
+
+    private void AttachToDesktop(WidgetWindow window, string key)
+    {
+        try
+        {
+            if (_desktopLayer is null)
+            {
+                _desktopLayer = new DesktopLayer();
+                _desktopLayer.ShellRestarted += OnShellRestarted;
+            }
+
+            if (!DesktopLayer.TryAttach(window))
+            {
+                _log.Warn($"Віджет {key}: вікна робочого столу не знайдено, відкриваю звичайним вікном.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Віджет {key}: шар робочого столу недоступний ({ex.Message}), відкриваю звичайним вікном.");
+        }
+    }
+
+    /// <summary>
+    /// Провідник перезапустився. Вікна віджетів з іншого процесу Windows зазвичай не знищує, а лише забирає їм власника,
+    /// і тоді Win+D їх ховає; тож перевідкриваємо всі відкриті віджети з новим Progman і повертаємо ті, що зникли.
+    /// </summary>
+    private void OnShellRestarted(object? sender, EventArgs e)
+    {
+        _dispatcher.BeginInvoke(() => ReattachToDesktop(attempt: 1));
+    }
+
+    /// <summary>
+    /// Новий Progman з'являється не обов'язково раніше за TaskbarCreated: якщо його ще немає, пробуємо ще кілька разів
+    /// з паузою (одноразові таймери: 1, 2, 4, 8 с), а потім відкриваємо віджети звичайними вікнами.
+    /// </summary>
+    private void ReattachToDesktop(int attempt)
+    {
+        if (!_restored || _closed || !_state.State.WidgetsOnDesktop)
+        {
+            return;
+        }
+
+        if (!DesktopLayer.DesktopExists() && attempt < 5)
+        {
+            var timer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher) { Interval = TimeSpan.FromSeconds(1 << (attempt - 1)) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                ReattachToDesktop(attempt + 1);
+            };
+            timer.Start();
+            return;
+        }
+
+        var keys = _windows.Keys.ToList();
+        foreach (var key in keys)
+        {
+            CloseKeepingVisible(key);
+        }
+
+        SaveNow();
+        OpenVisiblePlacements();
+        foreach (var key in keys.Where(k => !_windows.ContainsKey(k)))
+        {
+            VisibilityChanged?.Invoke(this, key);
+        }
     }
 
     private void OpenVisiblePlacements()
@@ -299,6 +442,15 @@ public sealed class WidgetHost
         }
 
         _windows.Remove(key);
+        if (window.LostOwner)
+        {
+            // Користувач віджет не закривав: Visible лишається, віджет повернеться після TaskbarCreated.
+            _log.Info($"Віджет {key} зник разом з робочим столом; повернеться, коли Провідник запуститься знову.");
+            SaveNow();
+            VisibilityChanged?.Invoke(this, key);
+            return;
+        }
+
         if (_state.State.Widgets.TryGetValue(key, out var placement))
         {
             placement.Visible = false;
@@ -350,13 +502,18 @@ public sealed class WidgetHost
         }
     }
 
-    /// <summary>Вмістити вікно в віртуальний екран, щоб віджет не відкрився за межами моніторів.</summary>
-    private static (double Left, double Top, double Width, double Height) Clamp(double left, double top, double width, double height)
+    /// <summary>
+    /// Вмістити вікно у віртуальний екран, щоб віджет не відкрився за межами моніторів;
+    /// у режимі перевірки — у тестову область (вона може лежати й поза моніторами).
+    /// </summary>
+    private static (double Left, double Top, double Width, double Height) Clamp(double left, double top, double width, double height, Rect? area)
     {
-        var screenLeft = SystemParameters.VirtualScreenLeft;
-        var screenTop = SystemParameters.VirtualScreenTop;
-        var screenWidth = SystemParameters.VirtualScreenWidth;
-        var screenHeight = SystemParameters.VirtualScreenHeight;
+        var bounds = area ?? new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        var screenLeft = bounds.Left;
+        var screenTop = bounds.Top;
+        var screenWidth = bounds.Width;
+        var screenHeight = bounds.Height;
 
         width = Math.Min(width, screenWidth);
         height = Math.Min(height, screenHeight);

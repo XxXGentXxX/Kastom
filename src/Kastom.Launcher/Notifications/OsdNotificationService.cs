@@ -1,10 +1,11 @@
 using System.Windows;
+using Kastom.Launcher.Services;
 using Kastom.Sdk.Services;
 
 namespace Kastom.Launcher.Notifications;
 
 /// <summary>Підказки на екрані (OSD) для модулів і лаунчера.</summary>
-public sealed class OsdNotificationService : INotificationService
+public sealed class OsdNotificationService(ScreenPolicy screens) : INotificationService
 {
     private OsdWindow? _window;
 
@@ -29,7 +30,7 @@ public sealed class OsdNotificationService : INotificationService
     // Одне вікно на всі підказки: створюється вперше при першому виклику, далі лише міняється текст.
     private void Show(string text)
     {
-        _window ??= new OsdWindow();
+        _window ??= new OsdWindow(screens);
         _window.ShowText(text);
     }
 }

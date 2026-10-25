@@ -23,13 +23,51 @@ public sealed class LauncherState
 
     public UpdateMode UpdateMode { get; set; } = UpdateMode.Notify;
 
-    public bool Autostart { get; set; } = true;
+    /// <summary>Автозапуск разом з Windows; вмикає користувач (О4).</summary>
+    public bool Autostart { get; set; }
+
+    /// <summary>Тема вікон лаунчера (О6).</summary>
+    public LauncherTheme Theme { get; set; } = LauncherTheme.System;
 
     /// <summary>Інша адреса каталогу (для тестерів). Null — типова.</summary>
     public string? CatalogUrlOverride { get; set; }
 
+    /// <summary>Розташування головного вікна з минулого запуску. Null — ще не закривалося.</summary>
+    public MainWindowPlacement? MainWindow { get; set; }
+
     /// <summary>Розташування й видимість віджетів: "kastom/modules", "demo/counter".</summary>
     public Dictionary<string, WidgetPlacement> Widgets { get; set; } = new();
+
+    /// <summary>
+    /// Віджети живуть на шарі робочого столу й не зникають від Win+D (В0, 🟡). Вмикає користувач: власником віджета
+    /// стає вікно робочого столу з процесу Провідника, а Windows тоді зв'язує черги вводу обох потоків.
+    /// Вимкнено — звичайні вікна, які Win+D ховає разом з усіма.
+    /// </summary>
+    public bool WidgetsOnDesktop { get; set; }
+}
+
+public enum LauncherTheme
+{
+    /// <summary>Як у Windows.</summary>
+    System,
+
+    Light,
+
+    Dark,
+}
+
+/// <summary>Звичайні (не розгорнуті) межі головного вікна в DIP і чи було воно розгорнуте.</summary>
+public sealed class MainWindowPlacement
+{
+    public double Left { get; set; }
+
+    public double Top { get; set; }
+
+    public double Width { get; set; }
+
+    public double Height { get; set; }
+
+    public bool Maximized { get; set; }
 }
 
 public sealed class InstalledModuleState

@@ -1,3 +1,4 @@
+using Kastom.Core.Runtime;
 using Kastom.Launcher.Services;
 using Velopack;
 
@@ -19,16 +20,22 @@ public static class Program
             .Run();
 
         var options = LaunchOptions.Parse(args);
+        if (options.Error is { } error)
+        {
+            // Без вікна: неправильні аргументи бувають лише в перевірках розробника.
+            Console.Error.WriteLine($"Kastom: {error}");
+            return 2;
+        }
 
         // Режим знімків працює поруч зі справжнім лаунчером і не бере участі в «одному екземплярі».
         SingleInstance? instance = null;
         if (options.RenderPagesDirectory is null)
         {
-            instance = SingleInstance.TryAcquire();
+            instance = SingleInstance.TryAcquire(options.DataDirectory);
             if (instance is null)
             {
                 // Запуск з --minimized (автозапуск) вікна не просить.
-                if (!options.Minimized) SingleInstance.SignalExisting("show");
+                if (!options.Minimized) SingleInstance.SignalExisting("show", options.DataDirectory);
                 return 0;
             }
         }

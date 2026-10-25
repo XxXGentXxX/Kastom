@@ -3,6 +3,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Kastom.Core;
+using Kastom.Core.Models;
+using Kastom.Core.Runtime;
 using Kastom.Launcher.Resources;
 using Kastom.Launcher.Services;
 using Kastom.Launcher.Shell;
@@ -23,8 +25,6 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private QuickPanelWindow? _quickPanel;
     private long _quickPanelClosedAt;
-    private Rect? _mainBounds;
-    private WindowState _mainState = WindowState.Normal;
     private HashSet<string> _announcedUpdates = [];
     private string? _renderTempDirectory;
     // Звичайний вихід: до 1 с чекаємо черги операцій, решту часу (модулі зупиняються паралельно по 5 с) — на зупинку.
@@ -60,7 +60,7 @@ public partial class App : Application
 
         try
         {
-            _services = new LauncherServices(_options, KastomPaths.Default(), () => ExitAsync(), id => OpenMainWindow(id));
+            _services = new LauncherServices(_options, ResolvePaths(), () => ExitAsync(), id => OpenMainWindow(id));
         }
         catch (Exception exception)
         {
@@ -72,6 +72,7 @@ public partial class App : Application
         }
 
         var services = _services;
+        Guard("тема", () => LauncherThemes.Apply(services.StateStore.State.Theme));
         Guard("автозапуск", () => ApplyAutostart(services));
         Guard("дії лаунчера", RegisterLauncherActions);
         Guard("гарячі клавіші", () => services.CreateHotkeys(registerInSystem: true));
@@ -134,6 +135,14 @@ public partial class App : Application
             Notify(string.Format(Strings.StartupProblems, string.Join(", ", _startupProblems)));
             _startupProblems.Clear();
         }
+    }
+
+    /// <summary>Справжні теки користувача або пісочниця --data-dir (local\ і roaming\ усередині неї).</summary>
+    private KastomPaths ResolvePaths()
+    {
+        if (_options.DataDirectory is not { } directory) return KastomPaths.Default();
+        var root = Path.GetFullPath(directory);
+        return new KastomPaths(Path.Combine(root, "local"), Path.Combine(root, "roaming"));
     }
 
     private static void ApplyAutostart(LauncherServices services) =>
@@ -214,6 +223,9 @@ public partial class App : Application
             if (showModules) window.NavigateTo(NavPage.Modules);
             if (!string.IsNullOrEmpty(moduleId)) window.OpenModulePage(moduleId);
 
+            // Режим --test-screen: вікно з'являється, але фокус лишається в програмі користувача.
+            if (!_services.Screens.MayActivate) return;
+
             // Windows не віддає фокус фоновому процесові; кадр поверх усіх обходить це.
             window.Topmost = true;
             window.Topmost = false;
@@ -228,38 +240,123 @@ public partial class App : Application
 
     private MainWindow CreateMainWindow()
     {
-        var window = new MainWindow(_services!, () => _ = ExitAsync(restart: true));
-        if (_mainBounds is { } bounds && IsOnScreen(bounds))
+        var services = _services!;
+        var window = new MainWindow(services, () => _ = ExitAsync(restart: true));
+        var screens = services.Screens;
+        window.ShowActivated = screens.MayActivate;
+
+        MainWindowPlacement? saved = null;
+        try
+        {
+            saved = services.StateStore.State.MainWindow;
+        }
+        catch (Exception exception)
+        {
+            LogError("Не вдалося прочитати розташування головного вікна", exception);
+        }
+
+        var bounds = saved is null ? Rect.Empty : new Rect(saved.Left, saved.Top, saved.Width, saved.Height);
+        // Режим перевірки бере збережене місце, лише якщо воно всередині тестової області.
+        if (IsUsable(bounds) && IsOnScreen(bounds) && (!screens.IsTestScreen || screens.WorkArea.Contains(bounds)))
         {
             window.WindowStartupLocation = WindowStartupLocation.Manual;
             window.Left = bounds.Left;
             window.Top = bounds.Top;
             window.Width = bounds.Width;
             window.Height = bounds.Height;
+            if (saved!.Maximized) window.WindowState = WindowState.Maximized;
+        }
+        else if (screens.IsTestScreen)
+        {
+            // Перше відкриття в режимі перевірки: посередині тестової області, а не головного монітора.
+            var area = screens.WorkArea;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.Width = Math.Max(window.MinWidth, Math.Min(window.Width, area.Width));
+            window.Height = Math.Max(window.MinHeight, Math.Min(window.Height, area.Height));
+            window.Left = area.Left + (area.Width - window.Width) / 2;
+            window.Top = area.Top + (area.Height - window.Height) / 2;
         }
 
-        if (_mainState == WindowState.Maximized) window.WindowState = WindowState.Maximized;
-
-        window.Closing += (_, _) =>
+        // Згорнуте вікно запам'ятовуємо в стані, з якого його згорнули (розгорнуте чи звичайне).
+        var lastState = window.WindowState;
+        window.StateChanged += (_, _) =>
         {
-            _mainBounds = window.RestoreBounds;
-            _mainState = window.WindowState == WindowState.Minimized ? WindowState.Normal : window.WindowState;
+            if (window.WindowState != WindowState.Minimized) lastState = window.WindowState;
         };
+        window.Closing += (_, _) => SaveMainPlacement(window, lastState == WindowState.Maximized);
         window.Closed += (_, _) =>
         {
             // Жодних посилань на вікно: воно має потрапити в збирач сміття.
             if (ReferenceEquals(_mainWindow, window)) _mainWindow = null;
             if (ReferenceEquals(MainWindow, window)) MainWindow = null;
+            ScheduleMemoryRelease();
         };
         return window;
     }
 
+    /// <summary>
+    /// О17: закрите головне вікно не тримається в пам'яті. Без нестачі пам'яті збирач сміття сам не прийде, тож через
+    /// кілька секунд після закриття (коли WPF відпустить вікно) прибираємо один раз. Таймер одноразовий — не опитування.
+    /// </summary>
+    private void ScheduleMemoryRelease()
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.ApplicationIdle) { Interval = TimeSpan.FromSeconds(3) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (_mainWindow is not null || _exiting) return;
+            // Одне повне збирання з ущільненням (пауза в десятки мілісекунд, раз після закриття вікна).
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+        };
+        timer.Start();
+    }
+
+    /// <summary>Запам'ятати звичайні межі вікна (і чи розгорнуте воно) до наступного відкриття — і наступного запуску.</summary>
+    private void SaveMainPlacement(MainWindow window, bool maximized)
+    {
+        try
+        {
+            var bounds = window.RestoreBounds;
+            if (!IsUsable(bounds) || _services is null) return;
+            _services.StateStore.State.MainWindow = new MainWindowPlacement
+            {
+                Left = bounds.Left,
+                Top = bounds.Top,
+                Width = bounds.Width,
+                Height = bounds.Height,
+                Maximized = maximized,
+            };
+            _services.StateStore.Save();
+        }
+        catch (Exception exception)
+        {
+            LogError("Не вдалося зберегти розташування головного вікна", exception);
+        }
+    }
+
+    private static bool IsUsable(Rect bounds) =>
+        !bounds.IsEmpty && double.IsFinite(bounds.Left) && double.IsFinite(bounds.Top)
+        && double.IsFinite(bounds.Width) && double.IsFinite(bounds.Height) && bounds.Width >= 1 && bounds.Height >= 1;
+
+    /// <summary>
+    /// Чи видно вікно на якомусь із моніторів (не лише в загальній рамці: між моніторами різного розміру бувають
+    /// «дірки»). Межі вікна — у DIP головного монітора, робочі області WinForms — у пікселях.
+    /// </summary>
     private static bool IsOnScreen(Rect bounds)
     {
-        var screen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
-            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
-        var overlap = Rect.Intersect(screen, bounds);
-        return !overlap.IsEmpty && overlap.Width >= 100 && overlap.Height >= 50;
+        var scale = SystemParameters.PrimaryScreenWidth > 0
+            ? System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Width / SystemParameters.PrimaryScreenWidth
+            : 1.0;
+        var pixels = new Rect(bounds.Left * scale, bounds.Top * scale, bounds.Width * scale, bounds.Height * scale);
+        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+        {
+            var area = screen.WorkingArea;
+            var overlap = Rect.Intersect(new Rect(area.Left, area.Top, area.Width, area.Height), pixels);
+            if (!overlap.IsEmpty && overlap.Width >= 100 * scale && overlap.Height >= 50 * scale) return true;
+        }
+
+        return false;
     }
 
     private void ToggleQuickPanel()
@@ -277,7 +374,7 @@ public partial class App : Application
             if (Stopwatch.GetElapsedTime(_quickPanelClosedAt).TotalMilliseconds < 300) return;
 
             var services = _services;
-            var panel = new QuickPanelWindow(new ModulesQuickView(services.Modules, services.Actions, id => OpenMainWindow(id)));
+            var panel = new QuickPanelWindow(new ModulesQuickView(services.Modules, services.Actions, id => OpenMainWindow(id)), services.Screens);
             panel.Closed += (_, _) =>
             {
                 if (ReferenceEquals(_quickPanel, panel)) _quickPanel = null;
@@ -296,6 +393,7 @@ public partial class App : Application
 
     private void ToggleLauncherWidget()
     {
+        if (_services is null || _exiting) return;
         try
         {
             _services!.Widgets.Toggle(WidgetHost.LauncherWidgetKey);

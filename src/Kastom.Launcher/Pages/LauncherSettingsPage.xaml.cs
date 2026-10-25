@@ -57,6 +57,10 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
         {
             var state = _services.StateStore.State;
             AutostartBox.IsChecked = state.Autostart;
+            ThemeSystem.IsChecked = state.Theme == LauncherTheme.System;
+            ThemeLight.IsChecked = state.Theme == LauncherTheme.Light;
+            ThemeDark.IsChecked = state.Theme == LauncherTheme.Dark;
+            DesktopLayerBox.IsChecked = state.WidgetsOnDesktop;
             ModeNotify.IsChecked = state.UpdateMode == UpdateMode.Notify;
             ModeAutomatic.IsChecked = state.UpdateMode == UpdateMode.Automatic;
             CatalogUrlBox.Text = state.CatalogUrlOverride ?? "";
@@ -155,6 +159,28 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
             _services.Log.Error("Не вдалося змінити автозапуск", exception);
             AutostartBox.IsChecked = !enabled;
             ShowMessage(string.Format(Strings.AutostartFailed, exception.Message), isError: true);
+        }
+    }
+
+    // ---------- Вигляд ----------
+
+    private void OnThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        ClearMessage();
+        var theme = ThemeLight.IsChecked == true ? LauncherTheme.Light
+            : ThemeDark.IsChecked == true ? LauncherTheme.Dark
+            : LauncherTheme.System;
+        try
+        {
+            _services.StateStore.State.Theme = theme;
+            _services.StateStore.Save();
+            LauncherThemes.Apply(theme);
+        }
+        catch (Exception exception)
+        {
+            _services.Log.Error("Не вдалося змінити тему", exception);
+            ShowMessage(string.Format(Strings.SettingsThemeFailed, exception.Message), isError: true);
         }
     }
 
@@ -268,6 +294,23 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
         {
             _services.Log.Error("Не вдалося перемкнути віджет лаунчера", exception);
             WidgetBox.IsChecked = !show;
+            ShowMessage(exception.Message, isError: true);
+        }
+    }
+
+    private void OnDesktopLayerClick(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        ClearMessage();
+        var onDesktop = DesktopLayerBox.IsChecked == true;
+        try
+        {
+            _services.Widgets.SetOnDesktop(onDesktop);
+        }
+        catch (Exception exception)
+        {
+            _services.Log.Error("Не вдалося перемкнути шар робочого столу для віджетів", exception);
+            DesktopLayerBox.IsChecked = _services.Widgets.OnDesktop;
             ShowMessage(exception.Message, isError: true);
         }
     }

@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using Kastom.Launcher.Services;
 using Kastom.Launcher.Settings;
 
 namespace Kastom.Launcher.Notifications;
@@ -21,12 +22,14 @@ internal sealed class OsdWindow : Window
     private static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(1.6);
     private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(250));
 
+    private readonly ScreenPolicy _screens;
     private readonly TextBlock _text;
     private readonly DispatcherTimer _timer;
     private int _generation;
 
-    public OsdWindow()
+    public OsdWindow(ScreenPolicy screens)
     {
+        _screens = screens;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true;
@@ -38,7 +41,7 @@ internal sealed class OsdWindow : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         WindowStartupLocation = WindowStartupLocation.Manual;
         UseLayoutRounding = true;
-        MaxWidth = Math.Max(240, SystemParameters.WorkArea.Width * 0.6);
+        MaxWidth = Math.Max(240, screens.WorkArea.Width * 0.6);
 
         _text = UiTheme.Label("", 16);
         _text.TextAlignment = TextAlignment.Center;
@@ -91,7 +94,7 @@ internal sealed class OsdWindow : Window
 
     private void Reposition()
     {
-        var work = SystemParameters.WorkArea;
+        var work = _screens.WorkArea;
         var width = ActualWidth > 0 ? ActualWidth : Width;
         var height = ActualHeight > 0 ? ActualHeight : 48;
         if (double.IsNaN(width))

@@ -265,13 +265,12 @@ public class HardeningTests
         Assert.Throws<CatalogValidationException>(() => VerifierOf(kit).Verify(json, kit.Sign(json), false));
     }
 
-    // ---- 6. CatalogTool (запускається зібраний kastom-catalog.exe, якщо він є) ----
+    // ---- 6. CatalogTool (запускається зібраний kastom-catalog.exe тієї ж конфігурації, що й тести) ----
 
     [Fact]
     public void CatalogTool_LauncherOptions_WriteLauncherEntry()
     {
         var tool = FindTool();
-        if (tool is null) return; // інструмент ще не зібрано: перевіряється при повній збірці рішення
 
         using var kit = new DeliveryKit();
         var zip = kit.BuildZip("demo", "1.0.0");
@@ -297,7 +296,6 @@ public class HardeningTests
     public void CatalogTool_WithoutLauncherOptions_HasNoLauncherEntry()
     {
         var tool = FindTool();
-        if (tool is null) return;
 
         using var kit = new DeliveryKit();
         kit.BuildZip("demo", "1.0.0");
@@ -309,30 +307,358 @@ public class HardeningTests
         Assert.Null(catalog.Launcher);
     }
 
-    private static string? FindTool()
+    // ---- 7. CatalogTool: sign, --base, verify без --public ----
+
+    private static CatalogEntry BaseEntry(string id, string version, string url) => new()
+    {
+        Id = id,
+        Name = "Тест " + id,
+        Version = version,
+        ContractVersion = 1,
+        Url = url,
+        Sha256 = new string('a', 64),
+        Size = 10,
+    };
+
+    private static string WriteCatalogFile(DeliveryKit kit, string name, DateTimeOffset generatedAt, LauncherRelease? launcher, params CatalogEntry[] entries)
+    {
+        var path = Path.Combine(kit.Root, name);
+        File.WriteAllBytes(path, DeliveryKit.CatalogBytes(entries, generatedAt: generatedAt, launcher: launcher));
+        return path;
+    }
+
+    /// <summary>Базовий каталог з підписом ключа тесту (<see cref="DeliveryKit.PublicKey"/>).</summary>
+    private static string WriteSignedBase(DeliveryKit kit, DateTimeOffset generatedAt, LauncherRelease? launcher, params CatalogEntry[] entries)
+    {
+        var path = WriteCatalogFile(kit, "base.json", generatedAt, launcher, entries);
+        File.WriteAllText(path + ".sig", kit.Sign(File.ReadAllBytes(path)));
+        return path;
+    }
+
+    private static string WriteSignedRaw(DeliveryKit kit, string json)
+    {
+        var path = Path.Combine(kit.Root, "base.json");
+        File.WriteAllText(path, json);
+        File.WriteAllText(path + ".sig", kit.Sign(File.ReadAllBytes(path)));
+        return path;
+    }
+
+    private static string OutCatalog(DeliveryKit kit) => Path.Combine(kit.Root, "out", "catalog.json");
+
+    private static (int ExitCode, string Output, string Error) RunCatalog(string tool, DeliveryKit kit, string baseFile, params string[] extra)
+    {
+        var args = new List<string>
+        {
+            "catalog", "--base", baseFile, "--public", kit.PublicKey, "--packages", kit.PackagesDir, "--base-url", "https://example.com/p",
+            "--out", OutCatalog(kit),
+        };
+        args.AddRange(extra);
+        return RunCapture(tool, args.ToArray());
+    }
+
+    private static string NewKey(string tool, DeliveryKit kit)
+    {
+        var privatePath = Path.Combine(kit.Root, "keys", "private.pem");
+        Assert.Equal(0, Run(tool, "keygen", "--private", privatePath, "--public", Path.Combine(kit.Root, "keys", "public.txt")));
+        return privatePath;
+    }
+
+    private static ModuleCatalog ReadCatalog(string path) =>
+        System.Text.Json.JsonSerializer.Deserialize<ModuleCatalog>(File.ReadAllBytes(path), KastomJson.Options)!;
+
+    [Fact]
+    public void CatalogTool_Sign_RefusesCatalogDatedInTheFuture()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        var key = NewKey(tool, kit);
+        var future = WriteCatalogFile(kit, "future.json", DateTimeOffset.UtcNow.AddHours(1), null);
+        var slightlyAhead = WriteCatalogFile(kit, "ahead.json", DateTimeOffset.UtcNow.AddMinutes(2), null);
+        var normal = WriteCatalogFile(kit, "normal.json", DateTimeOffset.UtcNow.AddMinutes(-1), null);
+        var broken = Path.Combine(kit.Root, "broken.json");
+        File.WriteAllText(broken, "це не json");
+
+        var refused = RunCapture(tool, "sign", "--key", key, "--catalog", future);
+
+        Assert.Equal(1, refused.ExitCode);
+        Assert.Contains("майбутнім", refused.Error);
+        Assert.False(File.Exists(future + ".sig"));
+        Assert.Equal(1, RunCapture(tool, "sign", "--key", key, "--catalog", broken).ExitCode);
+        Assert.False(File.Exists(broken + ".sig"));
+        Assert.Equal(0, Run(tool, "sign", "--key", key, "--catalog", slightlyAhead));
+        Assert.Equal(0, Run(tool, "sign", "--key", key, "--catalog", normal));
+        Assert.True(File.Exists(normal + ".sig"));
+    }
+
+    [Fact]
+    public void CatalogTool_Base_MergesNewPackageAndKeepsOtherModules()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseTime = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var baseRelease = new LauncherRelease { Version = "0.2.0", Sha256 = new string('b', 64), FileName = "Kastom-0.2.0-full.nupkg" };
+        var baseFile = WriteSignedBase(kit, baseTime, baseRelease,
+            BaseEntry("demo", "1.0.0", "https://old.example/demo-1.0.0.zip"),
+            BaseEntry("other", "1.5.0", "https://old.example/other-1.5.0.zip"));
+
+        var merged = RunCatalog(tool, kit, baseFile);
+        var catalog = ReadCatalog(OutCatalog(kit));
+
+        Assert.Equal(0, merged.ExitCode);
+        Assert.Equal(["demo", "other"], catalog.Modules.Select(m => m.Id));
+        var demo = catalog.Modules.Single(m => m.Id == "demo");
+        Assert.Equal("2.0.0", demo.Version);
+        Assert.Equal("https://example.com/p/demo-2.0.0.zip", demo.Url);
+        var other = catalog.Modules.Single(m => m.Id == "other");
+        Assert.Equal("1.5.0", other.Version);
+        Assert.Equal("https://old.example/other-1.5.0.zip", other.Url);
+        Assert.Equal("Kastom-0.2.0-full.nupkg", catalog.Launcher!.FileName);
+        Assert.True(catalog.GeneratedAt > baseTime);
+
+        // --launcher-* замінює реліз лаунчера з бази.
+        var package = Path.Combine(kit.Root, "Kastom-0.3.0-full.nupkg");
+        File.WriteAllBytes(package, [1, 2, 3]);
+        var replaced = RunCatalog(tool, kit, baseFile, "--launcher-package", package, "--launcher-version", "0.3.0");
+        Assert.Equal(0, replaced.ExitCode);
+        Assert.Equal("0.3.0", ReadCatalog(OutCatalog(kit)).Launcher!.Version);
+    }
+
+    [Theory]
+    [InlineData("1.0.0")]
+    [InlineData("2.0.0")]
+    public void CatalogTool_Base_SameOrNewerVersionInBase_Fails(string versionInBase)
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "1.0.0");
+        var baseFile = WriteSignedBase(kit, DateTimeOffset.UtcNow.AddMinutes(-10), null,
+            BaseEntry("demo", versionInBase, "https://old.example/demo.zip"));
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("не новіша", result.Error);
+        Assert.False(File.Exists(OutCatalog(kit)));
+    }
+
+    [Fact]
+    public void CatalogTool_Base_DatedInTheFuture_Fails()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteSignedBase(kit, DateTimeOffset.UtcNow.AddHours(1), null,
+            BaseEntry("demo", "1.0.0", "https://old.example/demo.zip"));
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("старіший", result.Error);
+        Assert.False(File.Exists(OutCatalog(kit)));
+    }
+
+    [Fact]
+    public void CatalogTool_Base_InvalidEntry_Fails()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteSignedBase(kit, DateTimeOffset.UtcNow.AddMinutes(-10), null,
+            BaseEntry("other", "1.0.0", "http://old.example/other.zip"));
+
+        Assert.Equal(1, RunCatalog(tool, kit, baseFile).ExitCode);
+    }
+
+    [Fact]
+    public void CatalogTool_Base_WithoutSignature_Fails()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteCatalogFile(kit, "base.json", DateTimeOffset.UtcNow.AddMinutes(-10), null,
+            BaseEntry("other", "1.0.0", "https://old.example/other.zip"));
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("підпис", result.Error);
+        Assert.False(File.Exists(OutCatalog(kit)));
+    }
+
+    [Fact]
+    public void CatalogTool_Base_SignedByForeignKey_Fails()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        using var stranger = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteCatalogFile(kit, "base.json", DateTimeOffset.UtcNow.AddMinutes(-10), null,
+            BaseEntry("other", "1.0.0", "https://old.example/other.zip"));
+        File.WriteAllText(baseFile + ".sig", stranger.Sign(File.ReadAllBytes(baseFile)));
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("не збігається", result.Error);
+        Assert.False(File.Exists(OutCatalog(kit)));
+    }
+
+    [Theory]
+    [InlineData("{\"schemaVersion\":1}")]
+    [InlineData("{\"schemaVersion\":1,\"generatedAt\":\"2026-10-01T12:00:00+00:00\"}")]
+    [InlineData("{\"schemaVersion\":1,\"modules\":[{\"id\":\"other\",\"name\":\"T\",\"version\":\"1.0.0\",\"contractVersion\":1,\"url\":\"https://old.example/o.zip\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"size\":10}]}")]
+    public void CatalogTool_Base_WithoutModulesOrGeneratedAt_Fails(string json)
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteSignedRaw(kit, json);
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.False(File.Exists(OutCatalog(kit)));
+    }
+
+    /// <summary>Відкликали останній модуль: підписана база з порожнім списком — не глухий кут для наступної публікації.</summary>
+    [Fact]
+    public void CatalogTool_Base_SignedEmptyModules_Succeeds()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteSignedRaw(kit, "{\"schemaVersion\":1,\"generatedAt\":\"2026-10-01T12:00:00+00:00\",\"modules\":[]}");
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"demo\"", File.ReadAllText(OutCatalog(kit)));
+    }
+
+    [Fact]
+    public void CatalogTool_Base_FileUrlWithHttpsBaseUrl_Fails()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+        var baseFile = WriteSignedBase(kit, DateTimeOffset.UtcNow.AddMinutes(-10), null,
+            BaseEntry("other", "1.0.0", "file:///C:/pkg/other.zip"));
+
+        var result = RunCatalog(tool, kit, baseFile);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("https://", result.Error);
+        Assert.False(File.Exists(OutCatalog(kit)));
+    }
+
+    [Fact]
+    public void CatalogTool_Base_MissingFile_Fails()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        kit.BuildZip("demo", "2.0.0");
+
+        var result = RunCatalog(tool, kit, Path.Combine(kit.Root, "nope.json"));
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("не знайдено", result.Error);
+    }
+
+    [Theory]
+    [InlineData("0.1.0", true, false)] // нижча версія
+    [InlineData("0.2.0", false, false)] // та сама версія, інший SHA-256
+    [InlineData("0.2.0", true, true)] // та сама версія, той самий SHA-256
+    [InlineData("0.3.0", false, true)] // вища версія
+    public void CatalogTool_Base_LauncherVersionRules(string requestedVersion, bool sameSha, bool accepted)
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        var package = Path.Combine(kit.Root, "Kastom-" + requestedVersion + "-full.nupkg");
+        byte[] bytes = [1, 2, 3];
+        File.WriteAllBytes(package, bytes);
+        var baseSha = sameSha ? Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)) : new string('c', 64);
+        var baseRelease = new LauncherRelease { Version = "0.2.0", Sha256 = baseSha, FileName = "Kastom-0.2.0-full.nupkg" };
+        var baseFile = WriteSignedBase(kit, DateTimeOffset.UtcNow.AddMinutes(-10), baseRelease,
+            BaseEntry("other", "1.0.0", "https://old.example/other.zip"));
+
+        var result = RunCatalog(tool, kit, baseFile, "--launcher-package", package, "--launcher-version", requestedVersion);
+
+        Assert.Equal(accepted ? 0 : 1, result.ExitCode);
+        Assert.Equal(accepted, File.Exists(OutCatalog(kit)));
+    }
+
+    [Fact]
+    public void CatalogTool_Verify_WithoutPublic_UsesEmbeddedKey()
+    {
+        var tool = FindTool();
+
+        using var kit = new DeliveryKit();
+        var key = NewKey(tool, kit);
+        var publicKey = Path.Combine(kit.Root, "keys", "public.txt");
+        var catalog = WriteCatalogFile(kit, "catalog.json", DateTimeOffset.UtcNow.AddMinutes(-1), null);
+        Assert.Equal(0, Run(tool, "sign", "--key", key, "--catalog", catalog));
+
+        Assert.Equal(0, Run(tool, "verify", "--public", publicKey, "--catalog", catalog));
+        // Без --public береться вшитий ключ: каталог, підписаний тимчасовим ключем, його не проходить, але це не помилка аргументів.
+        var result = RunCapture(tool, "verify", "--catalog", catalog);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("не збігається", result.Error);
+    }
+
+    /// <summary>Конфігурація, з якою зібрано сам тестовий проєкт: інструмент береться з тієї ж, щоб не запустити застарілий.</summary>
+    private const string BuildConfiguration =
+#if DEBUG
+        "Debug";
+#else
+        "Release";
+#endif
+
+    private static string FindTool()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             if (!File.Exists(Path.Combine(dir.FullName, "Kastom.slnx"))) continue;
-            foreach (var config in new[] { "Debug", "Release" })
-            {
-                var exe = Path.Combine(dir.FullName, "tools", "Kastom.CatalogTool", "bin", config, "net10.0-windows", "kastom-catalog.exe");
-                if (File.Exists(exe)) return exe;
-            }
+            var exe = Path.Combine(dir.FullName, "tools", "Kastom.CatalogTool", "bin", BuildConfiguration, "net10.0-windows", "kastom-catalog.exe");
+            if (File.Exists(exe)) return exe;
+            Assert.Fail($"Не знайдено {exe}. Зберіть інструмент: dotnet build tools\\Kastom.CatalogTool -c {BuildConfiguration} (або dotnet build Kastom.slnx -c {BuildConfiguration}).");
         }
 
-        return null;
+        Assert.Fail("Не знайдено теку репозиторію з Kastom.slnx, тож kastom-catalog.exe не знайти.");
+        return "";
     }
 
-    private static int Run(string exe, params string[] args)
+    private static int Run(string exe, params string[] args) => RunCapture(exe, args).ExitCode;
+
+    private static (int ExitCode, string Output, string Error) RunCapture(string exe, params string[] args)
     {
-        var info = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        var info = new ProcessStartInfo(exe)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8,
+            UseShellExecute = false,
+        };
         foreach (var a in args) info.ArgumentList.Add(a);
         using var process = Process.Start(info)!;
-        process.StandardOutput.ReadToEnd();
-        process.StandardError.ReadToEnd();
+        // Обидва потоки читаються паралельно: інакше повний буфер одного з них блокує процес.
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
         process.WaitForExit();
-        return process.ExitCode;
+        return (process.ExitCode, outputTask.GetAwaiter().GetResult(), errorTask.GetAwaiter().GetResult());
     }
 
     // ---- допоміжні типи ----

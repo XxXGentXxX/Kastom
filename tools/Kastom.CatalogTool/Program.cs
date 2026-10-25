@@ -24,14 +24,30 @@ internal static class CatalogToolCli
           pack    --dir <папка збірки модуля> --out <файл.zip>
                   Запакувати збірку модуля (потрібен правильний module.json) у zip.
           catalog --packages <папка з zip> --base-url <адреса> --out <catalog.json>
+                  [--base <catalog.json> [--public <файл або base64>]]
                   [--launcher-package <Kastom-X.Y.Z-full.nupkg> --launcher-version <X.Y.Z>]
                   Скласти каталог із пакетів. Адреса: https://... або file:///C:/...
+                  --base бере за основу наявний каталог: його модулі й реліз лаунчера лишаються
+                  (з власними адресами), а пакети з --packages додають нові модулі або замінюють
+                  запис того самого id. Базі потрібен підпис <base>.sig: пару перевіряє той самий
+                  верифікатор, що й у лаунчері (ключ --public, а без нього вшитий KastomTrust.CatalogPublicKey).
+                  База без підпису, з чужим підписом, без modules чи generatedAt або з file://-адресами
+                  при https --base-url відхиляється. Підписана база з порожнім списком модулів дозволена
+                  (так буває, коли відкликано останній модуль).
+                  Версія пакета має бути новішою за версію в базі, інакше помилка:
+                  той самий номер версії з іншим вмістом зламав би вже встановлені копії.
+                  Час створення нового каталогу має бути строго пізніший за час бази.
                   Обидва параметри --launcher-* разом додають у каталог реліз лаунчера
-                  (SHA-256 і ім'я файлу повного пакета Velopack) для самооновлення.
+                  (SHA-256 і ім'я файлу повного пакета Velopack) для самооновлення;
+                  вони замінюють реліз лаунчера з бази, а без них він лишається з бази.
+                  Версія лаунчера нижча за базову — помилка; та сама версія допустима лише з тим самим SHA-256.
           sign    --key <секретний.pem> --catalog <catalog.json>
                   Підписати точні байти каталогу; підпис пишеться в <catalog.json>.sig.
-          verify  --public <файл або base64> --catalog <catalog.json> [--allow-file-urls]
+                  Каталог, датований пізніше за теперішній час більш ніж на 5 хвилин, не підписується:
+                  лаунчер після нього відкидав би правильні каталоги як старіші.
+          verify  --catalog <catalog.json> [--public <файл або base64>] [--allow-file-urls]
                   Перевірити підпис і вміст каталогу, вивести список модулів.
+                  Без --public береться відкритий ключ, вшитий у лаунчер (KastomTrust.CatalogPublicKey).
           help    Показати цю довідку.
 
         Коди виходу: 0 — успіх, 1 — помилка виконання, 2 — неправильні аргументи.
@@ -52,7 +68,7 @@ internal static class CatalogToolCli
             {
                 "keygen" => KeyGen(Options.Parse(args, ["private", "public"], ["force"])),
                 "pack" => Pack(Options.Parse(args, ["dir", "out"], [])),
-                "catalog" => BuildCatalog(Options.Parse(args, ["packages", "base-url", "out", "launcher-package", "launcher-version"], [])),
+                "catalog" => BuildCatalog(Options.Parse(args, ["packages", "base-url", "out", "base", "public", "launcher-package", "launcher-version"], [])),
                 "sign" => Sign(Options.Parse(args, ["key", "catalog"], [])),
                 "verify" => Verify(Options.Parse(args, ["public", "catalog"], ["allow-file-urls"])),
                 _ => throw new UsageException($"Невідома команда: '{command}'."),
@@ -138,8 +154,16 @@ internal static class CatalogToolCli
         var packages = Path.GetFullPath(o.Required("packages"));
         var baseUrl = o.Required("base-url").TrimEnd('/');
         var outPath = Path.GetFullPath(o.Required("out"));
-        var launcher = ReadLauncher(o);
+        var launcherOption = ReadLauncher(o);
+        var allowFileUrls = baseUrl.StartsWith("file:", StringComparison.OrdinalIgnoreCase);
         if (!Directory.Exists(packages)) throw new IOException($"Папку з пакетами не знайдено: {packages}");
+
+        var publicArg = o.Optional("public");
+        var publicKey = publicArg is null ? KastomTrust.CatalogPublicKey
+            : File.Exists(publicArg) ? File.ReadAllText(publicArg).Trim() : publicArg.Trim();
+        var baseCatalog = o.Optional("base") is { } basePath ? ReadBaseCatalog(Path.GetFullPath(basePath), publicKey, allowFileUrls) : null;
+        CheckLauncherAgainstBase(launcherOption, baseCatalog?.Launcher);
+        var launcher = launcherOption ?? baseCatalog?.Launcher;
 
         var newest = new Dictionary<string, (CatalogEntry Entry, ModuleVersion Version)>(StringComparer.Ordinal);
         foreach (var zip in Directory.GetFiles(packages, "*.zip").OrderBy(f => f, StringComparer.Ordinal))
@@ -160,7 +184,7 @@ internal static class CatalogToolCli
                 Size = bytes.LongLength,
             };
 
-            var problem = CatalogEntryValidator.Validate(entry, allowFileUrls: baseUrl.StartsWith("file:", StringComparison.OrdinalIgnoreCase));
+            var problem = CatalogEntryValidator.Validate(entry, allowFileUrls);
             if (problem is not null) throw new CatalogValidationException($"{Path.GetFileName(zip)}: {problem}");
 
             var version = ModuleVersion.Parse(entry.Version);
@@ -173,11 +197,25 @@ internal static class CatalogToolCli
             newest[entry.Id] = (entry, version);
         }
 
+        var modules = new Dictionary<string, CatalogEntry>(StringComparer.Ordinal);
+        foreach (var existing in baseCatalog?.Modules ?? [])
+            modules[existing.Id] = existing;
+        foreach (var (id, (entry, version)) in newest)
+        {
+            if (modules.TryGetValue(id, out var current) && version <= ModuleVersion.Parse(current.Version))
+                throw new InvalidDataException($"Модуль '{id}': версія {entry.Version} не новіша за версію {current.Version} у базовому каталозі. Підніміть версію в module.json: той самий номер із іншим вмістом зламав би встановлені копії.");
+            modules[id] = entry;
+        }
+
+        var generatedAt = DateTimeOffset.UtcNow;
+        if (baseCatalog is not null && generatedAt <= baseCatalog.GeneratedAt)
+            throw new InvalidDataException($"Базовий каталог датовано {baseCatalog.GeneratedAt:u}, що не раніше за теперішній час {generatedAt:u}: лаунчер відкинув би новий каталог як старіший. Перевірте системний годинник.");
+
         var catalog = new ModuleCatalog
         {
             SchemaVersion = 1,
-            GeneratedAt = DateTimeOffset.UtcNow,
-            Modules = newest.Values.Select(v => v.Entry).OrderBy(e => e.Id, StringComparer.Ordinal).ToList(),
+            GeneratedAt = generatedAt,
+            Modules = modules.Values.OrderBy(e => e.Id, StringComparer.Ordinal).ToList(),
             Launcher = launcher,
         };
 
@@ -186,6 +224,69 @@ internal static class CatalogToolCli
         Console.WriteLine($"Каталог: {catalog.Modules.Count} модулів{(launcher is null ? "" : $", лаунчер {launcher.Version}")} → {outPath}");
         Console.WriteLine("Не забудьте підписати його: kastom-catalog sign.");
         return 0;
+    }
+
+    /// <summary>
+    /// Читає базовий каталог разом з підписом і перевіряє пару тим самим верифікатором, що й лаунчер
+    /// (повторно перевіряються схема, записи, дублі id, реліз лаунчера). Каталог без підпису базою бути не може.
+    /// </summary>
+    private static ModuleCatalog ReadBaseCatalog(string path, string publicKey, bool allowFileUrls)
+    {
+        if (!File.Exists(path)) throw new IOException($"Базовий каталог не знайдено: {path}");
+        var signaturePath = path + ".sig";
+        if (!File.Exists(signaturePath)) throw new IOException($"Немає підпису базового каталогу: {signaturePath}");
+        if (new FileInfo(path).Length > CatalogVerifier.MaxCatalogSize)
+            throw new CatalogValidationException($"{path}: каталог завеликий: понад 1 МБ.");
+
+        var bytes = File.ReadAllBytes(path);
+        ModuleCatalog catalog;
+        try
+        {
+            catalog = new CatalogVerifier(publicKey).Verify(bytes, File.ReadAllText(signaturePath).Trim(), allowFileUrls);
+        }
+        catch (CatalogValidationException ex)
+        {
+            throw new CatalogValidationException($"Базовий каталог {path} не пройшов перевірку: {ex.Message}");
+        }
+
+        // Типові значення полів не повинні видавати відсутні дані за справжні: `{"schemaVersion":1}` теж проходить розбір.
+        using var document = JsonDocument.Parse(bytes);
+        var names = document.RootElement.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!names.Contains("modules") || !names.Contains("generatedAt"))
+            throw new InvalidDataException($"{path}: у базовому каталозі немає modules або generatedAt.");
+        if (catalog.GeneratedAt <= DateTimeOffset.MinValue.AddYears(1))
+            throw new InvalidDataException($"{path}: у базовому каталозі не вказано час створення (generatedAt).");
+
+        return catalog;
+    }
+
+    /// <summary>Реліз лаунчера з параметрів не може бути старішим за реліз у базі; та сама версія — лише з тим самим SHA-256.</summary>
+    private static void CheckLauncherAgainstBase(LauncherRelease? requested, LauncherRelease? current)
+    {
+        if (requested is null || current is null) return;
+        var comparison = ModuleVersion.Parse(requested.Version).CompareTo(ModuleVersion.Parse(current.Version));
+        if (comparison < 0)
+            throw new InvalidDataException($"Версія лаунчера {requested.Version} нижча за версію {current.Version} у базовому каталозі: лаунчери не повинні знижуватися.");
+        if (comparison == 0 && !string.Equals(requested.Sha256, current.Sha256, StringComparison.Ordinal))
+            throw new InvalidDataException($"Лаунчер {requested.Version} уже є в базовому каталозі з іншим SHA-256: той самий номер версії з іншим вмістом зламав би встановлені копії.");
+    }
+
+    private static ModuleCatalog ReadCatalogFile(string path)
+    {
+        ModuleCatalog? catalog;
+        try
+        {
+            catalog = JsonSerializer.Deserialize<ModuleCatalog>(File.ReadAllBytes(path), KastomJson.Options);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"{path}: каталог не прочитано: {ex.Message}");
+        }
+
+        if (catalog is null) throw new InvalidDataException($"{path}: каталог порожній.");
+        if (catalog.Modules is null || catalog.Modules.Any(m => m is null))
+            throw new InvalidDataException($"{path}: у каталозі неправильний список модулів (modules).");
+        return catalog;
     }
 
     private static LauncherRelease? ReadLauncher(Options o)
@@ -215,6 +316,11 @@ internal static class CatalogToolCli
         if (!File.Exists(keyPath)) throw new IOException($"Секретний ключ не знайдено: {keyPath}");
         if (!File.Exists(catalogPath)) throw new IOException($"Каталог не знайдено: {catalogPath}");
 
+        // Каталог з датою в майбутньому лаунчер прийняв би, а потім відкидав би всі правильні каталоги як старіші.
+        var generatedAt = ReadCatalogFile(catalogPath).GeneratedAt;
+        if (generatedAt > DateTimeOffset.UtcNow.AddMinutes(5))
+            throw new InvalidDataException($"каталог датовано майбутнім ({generatedAt:u}); лаунчер після нього відкидатиме правильні каталоги як старіші. Перевірте системний годинник і перескладіть каталог.");
+
         using var key = ECDsa.Create();
         key.ImportFromPem(File.ReadAllText(keyPath));
         if (key.KeySize != 256) throw new CryptographicException("Ключ підпису має бути ECDSA P-256.");
@@ -228,9 +334,10 @@ internal static class CatalogToolCli
 
     private static int Verify(Options o)
     {
-        var publicArg = o.Required("public");
+        var publicArg = o.Optional("public");
         var catalogPath = Path.GetFullPath(o.Required("catalog"));
-        var publicKey = File.Exists(publicArg) ? File.ReadAllText(publicArg).Trim() : publicArg.Trim();
+        var publicKey = publicArg is null ? KastomTrust.CatalogPublicKey
+            : File.Exists(publicArg) ? File.ReadAllText(publicArg).Trim() : publicArg.Trim();
         if (!File.Exists(catalogPath)) throw new IOException($"Каталог не знайдено: {catalogPath}");
         if (!File.Exists(catalogPath + ".sig")) throw new IOException($"Немає файлу підпису: {catalogPath}.sig");
 

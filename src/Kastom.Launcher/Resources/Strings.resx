@@ -297,4 +297,25 @@
   <data name="UpdaterHashMismatch" xml:space="preserve">
     <value>Контрольна сума пакета оновлення не збігається з підписаною в каталозі. Оновлення скасовано, файл видалено.</value>
   </data>
+  <data name="SettingsAppearanceHeader" xml:space="preserve">
+    <value>Вигляд</value>
+  </data>
+  <data name="SettingsThemeSystem" xml:space="preserve">
+    <value>Як у Windows</value>
+  </data>
+  <data name="SettingsThemeLight" xml:space="preserve">
+    <value>Світла тема</value>
+  </data>
+  <data name="SettingsThemeDark" xml:space="preserve">
+    <value>Темна тема</value>
+  </data>
+  <data name="SettingsThemeFailed" xml:space="preserve">
+    <value>Не вдалося змінити тему: {0}</value>
+  </data>
+  <data name="SettingsWidgetsOnDesktop" xml:space="preserve">
+    <value>Віджети на шарі робочого столу: не зникають від Win⁠+⁠D</value>
+  </data>
+  <data name="SettingsWidgetsOnDesktopNote" xml:space="preserve">
+    <value>Експериментально: Windows не документує цей спосіб. Віджети лежать під вікнами програм, як значки робочого столу, і не приймають введення з клавіатури. Якщо вони поводяться дивно, вимкніть цей режим — тоді Win⁠+⁠D ховатиме їх разом з усіма вікнами.</value>
+  </data>
 </root>

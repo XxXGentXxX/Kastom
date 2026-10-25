@@ -25,6 +25,15 @@
             <TextBlock Text="{x:Static res:Strings.SettingsStartupHeader}" Style="{StaticResource SectionHeader}" />
             <CheckBox x:Name="AutostartBox" Content="{x:Static res:Strings.SettingsAutostart}" Click="OnAutostartClick" />
 
+            <!-- Вигляд -->
+            <TextBlock Text="{x:Static res:Strings.SettingsAppearanceHeader}" Style="{StaticResource SectionHeader}" />
+            <RadioButton x:Name="ThemeSystem" GroupName="Theme" Content="{x:Static res:Strings.SettingsThemeSystem}"
+                         Click="OnThemeClick" />
+            <RadioButton x:Name="ThemeLight" GroupName="Theme" Content="{x:Static res:Strings.SettingsThemeLight}"
+                         Click="OnThemeClick" />
+            <RadioButton x:Name="ThemeDark" GroupName="Theme" Content="{x:Static res:Strings.SettingsThemeDark}"
+                         Click="OnThemeClick" />
+
             <!-- Оновлення -->
             <TextBlock Text="{x:Static res:Strings.SettingsUpdatesHeader}" Style="{StaticResource SectionHeader}" />
             <RadioButton x:Name="ModeNotify" GroupName="UpdateMode" Content="{x:Static res:Strings.SettingsUpdateNotify}"
@@ -53,6 +62,10 @@
             <!-- Віджет -->
             <TextBlock Text="{x:Static res:Strings.SettingsWidgetHeader}" Style="{StaticResource SectionHeader}" />
             <CheckBox x:Name="WidgetBox" Content="{x:Static res:Strings.SettingsWidget}" Click="OnWidgetClick" />
+            <CheckBox x:Name="DesktopLayerBox" Content="{x:Static res:Strings.SettingsWidgetsOnDesktop}"
+                      Margin="0,8,0,0" Click="OnDesktopLayerClick" />
+            <TextBlock Text="{x:Static res:Strings.SettingsWidgetsOnDesktopNote}" Style="{StaticResource SecondaryText}"
+                       Margin="0,6,0,0" />
 
             <!-- Журнал -->
             <TextBlock Text="{x:Static res:Strings.SettingsLogsHeader}" Style="{StaticResource SectionHeader}" />

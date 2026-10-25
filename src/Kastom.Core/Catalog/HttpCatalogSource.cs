@@ -49,13 +49,13 @@ public sealed class HttpCatalogSource(HttpClient http, Uri catalogUrl, CatalogVe
             var signature = System.Text.Encoding.UTF8.GetString(signatureBytes).Trim();
 
             var catalog = verifier.Verify(catalogBytes, signature, allowFileUrls: false);
-            lock (_etagLock) _etag = etag;
             return new CatalogFetchResult
             {
                 Status = CatalogFetchStatus.Ok,
                 Catalog = catalog,
                 RawCatalog = catalogBytes,
                 Signature = signature,
+                ETag = etag,
             };
         }
         catch (CatalogValidationException ex)
@@ -74,6 +74,12 @@ public sealed class HttpCatalogSource(HttpClient http, Uri catalogUrl, CatalogVe
         {
             return Failed($"Каталог не отримано: {ex.Message}");
         }
+    }
+
+    /// <summary>ETag запам'ятовується лише для каталогу, який прийняв CatalogService: відкинутий не повинен давати 304 надалі.</summary>
+    public void MarkAccepted(CatalogFetchResult result)
+    {
+        lock (_etagLock) _etag = result.ETag;
     }
 
     private static CatalogFetchResult Failed(string error) =>

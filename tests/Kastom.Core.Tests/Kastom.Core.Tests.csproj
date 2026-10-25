@@ -22,6 +22,8 @@
     <ProjectReference Include="..\..\src\Kastom.Core\Kastom.Core.csproj" />
     <!-- Демо-модуль збирається перед тестами; тести беруть його з папки збірки, а не підключають до себе. -->
     <ProjectReference Include="..\..\modules\Kastom.Modules.Demo\Kastom.Modules.Demo.csproj" ReferenceOutputAssembly="false" />
+    <!-- kastom-catalog теж збирається перед тестами: тести запускають його exe тієї самої конфігурації. -->
+    <ProjectReference Include="..\..\tools\Kastom.CatalogTool\Kastom.CatalogTool.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

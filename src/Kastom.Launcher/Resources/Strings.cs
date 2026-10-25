@@ -203,4 +203,18 @@ public static class Strings
     public static string UpdaterFileNameMismatch => Get(nameof(UpdaterFileNameMismatch));
 
     public static string UpdaterHashMismatch => Get(nameof(UpdaterHashMismatch));
+
+    public static string SettingsAppearanceHeader => Get(nameof(SettingsAppearanceHeader));
+
+    public static string SettingsThemeSystem => Get(nameof(SettingsThemeSystem));
+
+    public static string SettingsThemeLight => Get(nameof(SettingsThemeLight));
+
+    public static string SettingsThemeDark => Get(nameof(SettingsThemeDark));
+
+    public static string SettingsThemeFailed => Get(nameof(SettingsThemeFailed));
+
+    public static string SettingsWidgetsOnDesktop => Get(nameof(SettingsWidgetsOnDesktop));
+
+    public static string SettingsWidgetsOnDesktopNote => Get(nameof(SettingsWidgetsOnDesktopNote));
 }

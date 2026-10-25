@@ -14,6 +14,8 @@ namespace Kastom.Launcher.Services;
 /// Оновлення лаунчера через Velopack (релізи на GitHub). Довіряємо не GitHub, а підписаному каталогу:
 /// оновлення пропонується лише тоді, коли знайдений Velopack-реліз збігається з <c>catalog.Current.Launcher</c>,
 /// а завантажений пакет перед застосуванням перевіряється за SHA-256 з каталогу.
+/// Реліз шукаємо не стрічкою релізів GitHub, а за тегом <c>v{версія з каталогу}</c>: GithubSource читає лише першу
+/// сторінку (10 релізів), а релізи модулів (<c>&lt;id&gt;-vX.Y.Z</c>) лежать у тому самому репозиторії й витіснили б реліз лаунчера.
 /// <paramref name="shutdownForUpdate"/> закриває лаунчер по-людськи (зупиняє модулі): ApplyUpdatesAndRestart
 /// вийшов би з процесу миттєво, не давши модулям зупинитися.
 /// </summary>
@@ -21,30 +23,47 @@ public sealed class VelopackLauncherUpdater(
     ICatalogService catalog,
     ModuleVersion currentVersion,
     IModuleLogger log,
-    Func<Task> shutdownForUpdate) : ILauncherUpdater
+    Func<Task> shutdownForUpdate,
+    bool selfUpdateAllowed = true) : ILauncherUpdater
 {
     // Поки репозиторій не створено, в адресі лишається заглушка OWNER: мережу не чіпаємо взагалі.
     private static readonly bool Disabled =
         KastomEndpoints.GitHubRepoUrl.Contains("OWNER", StringComparison.Ordinal);
 
     private PackagesUpdateManager? _manager;
+    private string? _managerVersion;
     private UpdateInfo? _pending;
     private LauncherRelease? _pendingRelease;
     private bool _disabledLogged;
 
-    private PackagesUpdateManager Manager =>
-        _manager ??= new PackagesUpdateManager(new GithubSource(KastomEndpoints.GitHubRepoUrl, null, false));
+    /// <summary>Менеджер останньої перевіреної версії; для IsInstalled і теки пакетів джерело неважливе.</summary>
+    private PackagesUpdateManager Manager => _manager ?? ManagerFor(currentVersion.ToString());
+
+    /// <summary>Джерело — файли релізу з тегом v{версія}: releases.win.json і пакети поруч.</summary>
+    private PackagesUpdateManager ManagerFor(string version)
+    {
+        if (_manager is null || _managerVersion != version)
+        {
+            var feed = $"{KastomEndpoints.GitHubRepoUrl}/releases/download/v{Uri.EscapeDataString(version)}/";
+            _manager = new PackagesUpdateManager(new SimpleWebSource(feed));
+            _managerVersion = version;
+        }
+
+        return _manager;
+    }
 
     public bool IsInstalled
     {
         get
         {
-            if (Disabled)
+            if (Disabled || !selfUpdateAllowed)
             {
                 if (!_disabledLogged)
                 {
                     _disabledLogged = true;
-                    log.Info("Самооновлення вимкнено: адреса репозиторію ще не задана (OWNER).");
+                    log.Info(selfUpdateAllowed
+                        ? "Самооновлення вимкнено: адреса репозиторію ще не задана (OWNER)."
+                        : "Самооновлення вимкнено: лаунчер працює в пісочниці (--data-dir).");
                 }
 
                 return false;
@@ -64,7 +83,7 @@ public sealed class VelopackLauncherUpdater(
         if (catalog.Current?.Launcher is not { } release) return null;
         if (!ModuleVersion.TryParse(release.Version, out var offered) || !(offered > currentVersion)) return null;
 
-        var info = await Manager.CheckForUpdatesAsync().WaitAsync(cancellationToken);
+        var info = await ManagerFor(release.Version).CheckForUpdatesAsync().WaitAsync(cancellationToken);
         if (info is null) return null;
 
         var target = info.TargetFullRelease;

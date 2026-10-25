@@ -1,0 +1,119 @@
+name: Release
+
+# Заготовка релізу лаунчера: тег виду v0.1.0 збирає інсталятор Velopack і створює ЧЕРНЕТКУ релізу GitHub.
+#
+# Теги модулів (audio-v1.0.0 тощо) цей workflow не обробляє: модулі публікує локальний
+# scripts\publish-module.ps1, бо SHA-256 у підписаному каталозі мусить збігатися саме з тим zip,
+# що завантажено в реліз. Для цього фільтр тегів нижче вимагає цифру одразу після "v":
+# модуль з id на кшталт "volume" (тег volume-v1.0.0) під фільтр не потрапляє.
+#
+# Каталог (catalog.json) підписується лише локально: секретного ключа в CI немає й не буде.
+# Після того, як чернетка створена, див. розділ «Випуск лаунчера» в docs/MODULES.md.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+# За замовчуванням токен лише читає. Запис потрібен єдиному кроку створення релізу, тож він винесений
+# в окремий job без збирання: код, який збирається й виконується (тести, dotnet publish, vpk),
+# працює без права запису в репозиторій.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Версія з тегу
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$') { throw "Тег '$tag' не схожий на vX.Y.Z" }
+          "VERSION=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Збірка (попередження вважаються помилками)
+        run: dotnet build Kastom.slnx -c Release -warnaserror
+
+      - name: Тести
+        run: dotnet test Kastom.slnx -c Release --no-build
+
+      - name: Публікація лаунчера
+        run: dotnet publish src/Kastom.Launcher/Kastom.Launcher.csproj -c Release -r win-x64 --self-contained true "-p:Version=$env:VERSION" -o artifacts/publish
+        # Той самий виклик, що в scripts\pack-launcher.ps1.
+
+      - name: Встановлення vpk
+        # Версія інструмента vpk мусить збігатися з версією пакета Velopack у Kastom.Launcher.csproj,
+        # тож береться прямо з файла проєкту.
+        run: |
+          $csproj = Get-Content src/Kastom.Launcher/Kastom.Launcher.csproj -Raw
+          if ($csproj -notmatch '<PackageReference Include="Velopack" Version="([^"]+)"') { throw "Не знайдено PackageReference Velopack у Kastom.Launcher.csproj" }
+          dotnet tool install -g vpk --version $Matches[1]
+          if ($LASTEXITCODE -ne 0) { throw "dotnet tool install завершився з кодом $LASTEXITCODE" }
+
+      - name: Пакування Velopack
+        # Параметри ті самі, що в scripts\pack-launcher.ps1.
+        run: |
+          vpk pack --packId Kastom --packVersion $env:VERSION --packDir artifacts/publish --mainExe Kastom.exe --packTitle Kastom --outputDir Releases
+          if ($LASTEXITCODE -ne 0) { throw "vpk pack завершився з кодом $LASTEXITCODE" }
+
+      - name: Файли релізу як артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: releases
+          path: Releases
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Файли релізу з артефакта
+        uses: actions/download-artifact@v4
+        with:
+          name: releases
+          path: Releases
+
+      - name: Чернетка релізу
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$') { throw "Тег '$tag' не схожий на vX.Y.Z" }
+          $version = $Matches[1]
+
+          $notes = @"
+          Чернетка релізу лаунчера Kastom $version.
+
+          Файли зібрано автоматично (Velopack). Каталог із цим релізом ще не підписано: підпис ставиться лише локально.
+          Порядок дій — у розділі «Випуск лаунчера» файла docs/MODULES.md.
+          "@
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          [IO.File]::WriteAllText($notesFile, $notes, (New-Object System.Text.UTF8Encoding($false)))
+
+          $files = @(Get-ChildItem -Path Releases -File | ForEach-Object { $_.FullName })
+          if ($files.Count -eq 0) { throw "У теці Releases немає файлів" }
+
+          $releaseArgs = @($tag, '--repo', $env:GITHUB_REPOSITORY, '--draft', '--title', "Kastom $version", '--notes-file', $notesFile)
+          if ($version.Contains('-')) { $releaseArgs += '--prerelease' }
+          gh release create @releaseArgs @files
+          if ($LASTEXITCODE -ne 0) { throw "gh release create завершився з кодом $LASTEXITCODE" }

@@ -7,6 +7,9 @@
     <Project Path="src/Kastom.Launcher/Kastom.Launcher.csproj" />
     <Project Path="src/Kastom.Sdk/Kastom.Sdk.csproj" />
   </Folder>
+  <Folder Name="/templates/">
+    <Project Path="templates/Kastom.Modules.Template/Kastom.Modules.Template.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Kastom.Core.Tests/Kastom.Core.Tests.csproj" />
   </Folder>

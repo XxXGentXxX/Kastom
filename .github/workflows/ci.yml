@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Новий прогін тієї самої гілки скасовує попередній, що ще триває.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Проєкти лаунчера й модулів — WPF, тож потрібен Windows.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Збірка (попередження вважаються помилками)
+        run: dotnet build Kastom.slnx -c Release -warnaserror
+
+      - name: Тести
+        run: dotnet test Kastom.slnx -c Release --no-build

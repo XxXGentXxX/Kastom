@@ -71,6 +71,7 @@ public sealed class CatalogService : ICatalogService
                     _currentRaw = result.RawCatalog;
                 }
 
+                _source.MarkAccepted(result);
                 if (changed) CatalogChanged?.Invoke(this, EventArgs.Empty);
                 break;
             case CatalogFetchStatus.Ok:

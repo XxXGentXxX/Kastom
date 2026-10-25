@@ -1,0 +1,11 @@
+{
+  "id": "template",
+  "name": "Шаблон модуля",
+  "description": "Опишіть, що робить модуль, одним реченням.",
+  "version": "1.0.0",
+  "contractVersion": 1,
+  "entryAssembly": "Kastom.Modules.Template.dll",
+  "entryType": "Kastom.Modules.Template.TemplateModule",
+  "minLauncherVersion": "0.1.0",
+  "author": "Kastom"
+}

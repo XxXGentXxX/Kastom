@@ -14,6 +14,7 @@ public sealed class WidgetWindow : Window
     private const double HeaderHeight = 30;
 
     private readonly Border _body;
+    private bool _closingRaised;
 
     public WidgetWindow(string title, FrameworkElement content)
     {
@@ -24,6 +25,8 @@ public sealed class WidgetWindow : Window
         Background = Brushes.Transparent;
         ShowInTaskbar = false;
         Topmost = false;
+        // Віджет на столі не забирає фокус, коли з'являється (зокрема при автозапуску).
+        ShowActivated = false;
         MinWidth = 160;
         MinHeight = 80;
         UseLayoutRounding = true;
@@ -94,9 +97,12 @@ public sealed class WidgetWindow : Window
 
         Content = UiTheme.WindowSurface(layout);
 
+        Closing += (_, _) => _closingRaised = true;
+
         // Вміст створив модуль: після закриття відпускаємо його, щоб віджет не тримав вікно живим.
         Closed += (_, _) =>
         {
+            LostOwner = !_closingRaised;
             _body.Child = null;
             Content = null;
         };
@@ -104,6 +110,12 @@ public sealed class WidgetWindow : Window
         LocationChanged += (_, _) => RaisePlacementChanged();
         SizeChanged += (_, _) => RaisePlacementChanged();
     }
+
+    /// <summary>
+    /// Вікно зникло без закриття: Windows знищила його разом із власником (Провідник перезапустився).
+    /// Користувач віджет не закривав, тож він лишається видимим у стані.
+    /// </summary>
+    public bool LostOwner { get; private set; }
 
     /// <summary>Хост вмикає після Show(), щоб початкове розташування не вважалося зміною користувача.</summary>
     public bool TrackChanges { get; set; }
