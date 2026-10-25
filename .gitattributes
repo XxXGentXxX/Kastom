@@ -2,3 +2,5 @@
 * text=auto
 *.png binary
 *.ico binary
+# Підпис каталогу покриває точні байти: git не має міняти в них кінці рядків.
+catalog/** -text

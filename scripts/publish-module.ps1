@@ -122,6 +122,10 @@ if ($Publish) {
     # Пакет збирається з робочої теки: незакомічений код модуля потрапив би в реліз, якого немає в main.
     $moduleDirty = Get-StepOutput "git status (модуль)" { git -C $root status --porcelain -- $moduleDir }
     if ($moduleDirty) { throw "Тека модуля має незакомічені зміни:`n$moduleDirty`nСпершу закомітьте й запуште код модуля." }
+    # Підпис покриває точні байти каталогу: якщо git міняє в ньому кінці рядків (text=auto), лаунчер отримає
+    # з GitHub інші байти й відкине каталог. Потрібен атрибут "catalog/** -text" у .gitattributes.
+    $textAttr = Get-StepOutput "git check-attr" { git -C $root check-attr text -- $Catalog }
+    if ($textAttr -notmatch ': text: unset$') { throw "Git може змінити кінці рядків у каталозі ($textAttr). Додайте 'catalog/** -text' у .gitattributes." }
     # Коміт каталогу не має прихопити чужі зміни, що вже лежать в індексі.
     $staged = Get-StepOutput "git diff --cached" { git -C $root diff --cached --name-only }
     if ($staged) { throw "В індексі git є підготовлені зміни:`n$staged`nЗакомітьте або приберіть їх з індексу й повторіть." }
