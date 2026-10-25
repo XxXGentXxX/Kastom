@@ -13,8 +13,20 @@ public sealed class LauncherState
     public List<string> PendingRemovals { get; set; } = new();
 
     /// <summary>
-    /// Прив'язки клавіш: повний ідентифікатор дії ("audio/mute-mic") → поєднання ("Ctrl+Alt+M").
-    /// Порожній рядок означає, що користувач навмисно прибрав поєднання. Немає запису — діє типове.
+    /// Адреси розділів клавіш (Г2): id розділу ("kastom", "audio") → модифікатори ("Ctrl+Alt").
+    /// Немає запису — діє типова адреса розділу.
+    /// </summary>
+    public Dictionary<string, string> HotkeyAddresses { get; set; } = new();
+
+    /// <summary>
+    /// Клавіші дій: повний ідентифікатор дії ("audio/mute-mic") → одна клавіша ("M"); поєднання дії = адреса її розділу + ця клавіша.
+    /// Порожній рядок означає, що користувач навмисно прибрав клавішу. Немає запису — діє типова клавіша, якщо вона вільна.
+    /// </summary>
+    public Dictionary<string, string> HotkeyKeys { get; set; } = new();
+
+    /// <summary>
+    /// Застарілий формат до 0.1.3: повні поєднання дій ("audio/mute-mic" → "Ctrl+Alt+M"). Лише читається:
+    /// <c>LegacyHotkeyMigration</c> переносить їх в адреси й клавіші та спорожнює словник, нові записи сюди не потрапляють.
     /// </summary>
     public Dictionary<string, string> Hotkeys { get; set; } = new();
 

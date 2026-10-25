@@ -39,10 +39,6 @@ public static class HotkeyStrings
 
     public static string ResetButton => Get(nameof(ResetButton));
 
-    public static string CapturePrompt => Get(nameof(CapturePrompt));
-
-    public static string CaptureHint => Get(nameof(CaptureHint));
-
     public static string KeyboardHint => Get(nameof(KeyboardHint));
 
     public static string FilterInfo => Get(nameof(FilterInfo));
@@ -54,4 +50,24 @@ public static class HotkeyStrings
     public static string NoActions => Get(nameof(NoActions));
 
     public static string TooltipLine => Get(nameof(TooltipLine));
+
+    public static string ClearButton => Get(nameof(ClearButton));
+
+    public static string CaptureKeyPrompt => Get(nameof(CaptureKeyPrompt));
+
+    public static string CaptureKeyHint => Get(nameof(CaptureKeyHint));
+
+    public static string AddressLabel => Get(nameof(AddressLabel));
+
+    public static string AddressHint => Get(nameof(AddressHint));
+
+    public static string AddressResetButton => Get(nameof(AddressResetButton));
+
+    public static string AddressAltGrSuffix => Get(nameof(AddressAltGrSuffix));
+
+    public static string AddressCautionSuffix => Get(nameof(AddressCautionSuffix));
+
+    public static string AddressCtrlAltNote => Get(nameof(AddressCtrlAltNote));
+
+    public static string AddressSingleWarning => Get(nameof(AddressSingleWarning));
 }

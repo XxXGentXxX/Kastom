@@ -38,12 +38,12 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Assign_while_suspended_takes_effect_on_resume()
+    public void SetKey_while_suspended_takes_effect_on_resume()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
         var token = f.Manager.Suspend();
 
-        Assert.True(f.Manager.Assign("audio/mute", CtrlAltN).Success);
+        Assert.True(f.Manager.SetKey("audio/mute", 'N').Success);
         Assert.Empty(f.Backend.Registered);
 
         token.Dispose();
@@ -54,9 +54,10 @@ public partial class HotkeyManagerTests
     public void Suspended_assign_of_gesture_used_by_other_action_reports_conflict()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM, "Звук"), Action("video", "cam"));
+        f.Manager.SetAddress("video", CtrlAlt);
         using var token = f.Manager.Suspend();
 
-        var result = f.Manager.Assign("video/cam", CtrlAltM);
+        var result = f.Manager.SetKey("video/cam", 'M');
 
         Assert.False(result.Success);
         Assert.Equal("audio/mute", result.ConflictingActionId);
@@ -67,7 +68,7 @@ public partial class HotkeyManagerTests
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
 
-        Assert.Equal("Ctrl+Alt+M", f.State.State.Hotkeys["audio/mute"]);
+        Assert.Equal("M", f.State.State.HotkeyKeys["audio/mute"]);
         Assert.Equal(1, f.State.SaveCount);
     }
 
@@ -83,7 +84,7 @@ public partial class HotkeyManagerTests
         var newcomer = f.Binding("alpha/mute");
         Assert.Null(newcomer.Gesture);
         Assert.Equal(HotkeyBindingStatus.Unassigned, newcomer.Status);
-        Assert.DoesNotContain("alpha/mute", f.State.State.Hotkeys.Keys);
+        Assert.DoesNotContain("alpha/mute", f.State.State.HotkeyKeys.Keys);
     }
 
     [Fact]
@@ -93,17 +94,17 @@ public partial class HotkeyManagerTests
         f.Catalog.Add(Action("alpha", "mute", CtrlAltM, "Барвінок"));
         f.Catalog.RaiseChanged();
 
-        var blocked = f.Manager.ResetToDefault("alpha/mute");
+        var blocked = f.Manager.ResetKey("alpha/mute");
         Assert.False(blocked.Success);
         Assert.Equal("zeta/mute", blocked.ConflictingActionId);
         Assert.Contains("Яблуко", blocked.Error);
 
-        f.Manager.Assign("zeta/mute", null);
-        var free = f.Manager.ResetToDefault("alpha/mute");
+        f.Manager.SetKey("zeta/mute", null);
+        var free = f.Manager.ResetKey("alpha/mute");
 
         Assert.True(free.Success);
         Assert.Equal(HotkeyBindingStatus.Active, f.Binding("alpha/mute").Status);
-        Assert.Equal("Ctrl+Alt+M", f.State.State.Hotkeys["alpha/mute"]);
+        Assert.Equal("M", f.State.State.HotkeyKeys["alpha/mute"]);
     }
 
     [Fact]
@@ -116,14 +117,14 @@ public partial class HotkeyManagerTests
         {
             f.Catalog.RaiseChanged();
             f.Manager.Enabled = i % 2 == 1;
-            f.Manager.Assign("audio/mute", i % 2 == 0 ? CtrlAltK : CtrlAltM);
+            f.Manager.SetKey("audio/mute", i % 2 == 0 ? 'K' : 'M');
             using (f.Manager.Suspend())
             {
             }
         }
 
         f.Manager.Enabled = true;
-        f.Manager.Assign("audio/mute", CtrlAltM);
+        f.Manager.SetKey("audio/mute", 'M');
 
         var after = f.Backend.Registered.ToDictionary(p => p.Value, p => p.Key);
         Assert.Equal(before[CtrlAltM], after[CtrlAltM]);
@@ -134,16 +135,16 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Assign_save_failure_reverts_state_and_registrations()
+    public void SetKey_save_failure_reverts_state_and_registrations()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
         f.State.ThrowOnSave = true;
 
-        var result = f.Manager.Assign("audio/mute", CtrlAltN);
+        var result = f.Manager.SetKey("audio/mute", 'N');
 
         Assert.False(result.Success);
         Assert.Contains("disk full", result.Error);
-        Assert.Equal("Ctrl+Alt+M", f.State.State.Hotkeys["audio/mute"]);
+        Assert.Equal("M", f.State.State.HotkeyKeys["audio/mute"]);
         Assert.Equal(CtrlAltM, f.Binding("audio/mute").Gesture);
         Assert.Equal([CtrlAltM], f.Backend.Registered.Values);
         Assert.NotEmpty(f.Log.Errors);
@@ -153,13 +154,13 @@ public partial class HotkeyManagerTests
     public void Reset_save_failure_reverts_state_and_registrations()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
-        f.Manager.Assign("audio/mute", CtrlAltN);
+        f.Manager.SetKey("audio/mute", 'N');
         f.State.ThrowOnSave = true;
 
-        var result = f.Manager.ResetToDefault("audio/mute");
+        var result = f.Manager.ResetKey("audio/mute");
 
         Assert.False(result.Success);
-        Assert.Equal("Ctrl+Alt+N", f.State.State.Hotkeys["audio/mute"]);
+        Assert.Equal("N", f.State.State.HotkeyKeys["audio/mute"]);
         Assert.Equal([CtrlAltN], f.Backend.Registered.Values);
     }
 

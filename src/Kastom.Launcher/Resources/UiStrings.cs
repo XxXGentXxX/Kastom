@@ -45,4 +45,7 @@ public static class UiStrings
     public static string QuickStatusNotRunning => Get(nameof(QuickStatusNotRunning));
     public static string QuickToggleFailedFormat => Get(nameof(QuickToggleFailedFormat));
     public static string QuickRestartNote => Get(nameof(QuickRestartNote));
+    public static string ModuleTabModule => Get(nameof(ModuleTabModule));
+    public static string ModuleTabSettings => Get(nameof(ModuleTabSettings));
+    public static string HotkeysSection => Get(nameof(HotkeysSection));
 }

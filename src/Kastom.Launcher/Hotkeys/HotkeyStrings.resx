@@ -25,13 +25,13 @@
     <value>Активне</value>
   </data>
   <data name="StatusConflict" xml:space="preserve">
-    <value>Конфлікт з «{0}»</value>
+    <value>Збігається з «{0}» — не працює</value>
   </data>
   <data name="StatusConflictUnknown" xml:space="preserve">
-    <value>Конфлікт з іншою дією</value>
+    <value>Збігається з іншою дією — не працює</value>
   </data>
   <data name="StatusTakenBySystem" xml:space="preserve">
-    <value>Зайняте іншою програмою</value>
+    <value>Зайняте Windows або іншою програмою — не працює</value>
   </data>
   <data name="StatusUnassigned" xml:space="preserve">
     <value>Не призначено</value>
@@ -51,12 +51,6 @@
   <data name="ResetButton" xml:space="preserve">
     <value>Скинути</value>
   </data>
-  <data name="CapturePrompt" xml:space="preserve">
-    <value>Натисніть поєднання…</value>
-  </data>
-  <data name="CaptureHint" xml:space="preserve">
-    <value>Esc — скасувати, Backspace або Delete — прибрати поєднання.</value>
-  </data>
   <data name="KeyboardHint" xml:space="preserve">
     <value>Клацніть клавішу, щоб побачити дії, які її використовують.</value>
   </data>
@@ -74,5 +68,35 @@
   </data>
   <data name="TooltipLine" xml:space="preserve">
     <value>{0} — {1} ({2})</value>
+  </data>
+  <data name="ClearButton" xml:space="preserve">
+    <value>Очистити</value>
+  </data>
+  <data name="CaptureKeyPrompt" xml:space="preserve">
+    <value>Натисніть клавішу…</value>
+  </data>
+  <data name="CaptureKeyHint" xml:space="preserve">
+    <value>Натисніть одну клавішу, адреса вже додана. Esc — скасувати.</value>
+  </data>
+  <data name="AddressLabel" xml:space="preserve">
+    <value>Адреса</value>
+  </data>
+  <data name="AddressHint" xml:space="preserve">
+    <value>Адреса — клавіші-модифікатори, спільні для всіх дій розділу. Поєднання дії: адреса + її клавіша.</value>
+  </data>
+  <data name="AddressResetButton" xml:space="preserve">
+    <value>Типова</value>
+  </data>
+  <data name="AddressAltGrSuffix" xml:space="preserve">
+    <value> (AltGr)</value>
+  </data>
+  <data name="AddressCautionSuffix" xml:space="preserve">
+    <value> (обережно)</value>
+  </data>
+  <data name="AddressCtrlAltNote" xml:space="preserve">
+    <value>AltGr у Windows — це Ctrl+Alt, тому для української розкладки не беріть клавішу U: AltGr+U дає «ґ».</value>
+  </data>
+  <data name="AddressSingleWarning" xml:space="preserve">
+    <value>Одна клавіша-модифікатор забирає звичайні скорочення програм, наприклад Ctrl+M.</value>
   </data>
 </root>

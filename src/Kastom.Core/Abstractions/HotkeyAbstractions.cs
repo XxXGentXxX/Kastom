@@ -32,27 +32,53 @@ public enum HotkeyBindingStatus
     Disabled,
 }
 
-public sealed record HotkeyBindingInfo(RegisteredAction Action, HotkeyGesture? Gesture, HotkeyBindingStatus Status);
+/// <summary>
+/// Прив'язка дії: <see cref="Gesture"/> — ефективне поєднання (адреса розділу + клавіша дії), null — клавіші немає;
+/// <see cref="DefaultGesture"/> — те, що дала б типова клавіша дії за теперішньої адреси.
+/// </summary>
+public sealed record HotkeyBindingInfo(
+    RegisteredAction Action,
+    HotkeyGesture? Gesture,
+    HotkeyBindingStatus Status,
+    HotkeyGesture? DefaultGesture = null);
+
+/// <summary>Розділ клавіш (Г2): лаунчер або модуль, у якого зараз є дії. Адреса — модифікатори, спільні для дій розділу.</summary>
+public sealed record HotkeySectionInfo(string Id, string Name, HotkeyModifiers Address, HotkeyModifiers DefaultAddress)
+{
+    public bool IsDefaultAddress => Address == DefaultAddress;
+}
 
 public sealed record HotkeyAssignResult(bool Success, string? Error = null, string? ConflictingActionId = null);
 
-/// <summary>Прив'язки клавіш до дій лаунчера й модулів.</summary>
+/// <summary>Прив'язки клавіш до дій лаунчера й модулів за схемою «адреса розділу + клавіша дії».</summary>
 public interface IHotkeyManager : IDisposable
 {
     /// <summary>По одному запису на кожну дію з <see cref="IActionCatalog"/>.</summary>
     IReadOnlyList<HotkeyBindingInfo> Bindings { get; }
 
+    /// <summary>Розділи з діями: лаунчер першим, далі модулі за назвою.</summary>
+    IReadOnlyList<HotkeySectionInfo> Sections { get; }
+
     /// <summary>Загальний вимикач (зберігається в стані лаунчера).</summary>
     bool Enabled { get; set; }
 
-    /// <summary>Призначити поєднання; null прибирає його.</summary>
-    HotkeyAssignResult Assign(string globalActionId, HotkeyGesture? gesture);
+    /// <summary>
+    /// Змінити адресу розділу: усі його дії реєструються наново. Конфлікти нових поєднань не відхиляють зміну —
+    /// вони видні в <see cref="Bindings"/>, а решта дій працює.
+    /// </summary>
+    HotkeyAssignResult SetAddress(string sectionId, HotkeyModifiers address);
 
-    /// <summary>Повернути поєднання за замовчуванням з <see cref="Kastom.Sdk.Actions.ModuleAction.DefaultHotkey"/>.</summary>
-    HotkeyAssignResult ResetToDefault(string globalActionId);
+    /// <summary>Повернути типову адресу розділу (найчастіші модифікатори типових клавіш його дій).</summary>
+    HotkeyAssignResult ResetAddress(string sectionId);
+
+    /// <summary>Призначити дії клавішу (віртуальний код Windows); null прибирає її. Зайняте поєднання відхиляється.</summary>
+    HotkeyAssignResult SetKey(string globalActionId, int? virtualKey);
+
+    /// <summary>Повернути клавішу за замовчуванням з <see cref="Kastom.Sdk.Actions.ModuleAction.DefaultHotkey"/>.</summary>
+    HotkeyAssignResult ResetKey(string globalActionId);
 
     /// <summary>
-    /// Тимчасово зняти всі поєднання з реєстрації (поки користувач натискає нове поєднання на сторінці клавіш:
+    /// Тимчасово зняти всі поєднання з реєстрації (поки користувач натискає клавішу на сторінці клавіш:
     /// інакше Windows перехопить уже зареєстроване поєднання раніше, ніж його побачить вікно).
     /// Dispose повертає реєстрацію. Вкладені виклики допустимі.
     /// </summary>

@@ -108,4 +108,13 @@
   <data name="QuickRestartNote" xml:space="preserve">
     <value>Зміна набуде чинності після перезапуску Kastom</value>
   </data>
+  <data name="ModuleTabModule" xml:space="preserve">
+    <value>Модуль</value>
+  </data>
+  <data name="ModuleTabSettings" xml:space="preserve">
+    <value>Налаштування</value>
+  </data>
+  <data name="HotkeysSection" xml:space="preserve">
+    <value>Гарячі клавіші</value>
+  </data>
 </root>

@@ -70,6 +70,11 @@ public static class PageRenderer
                 {
                     window.OpenModulePage(moduleId);
                     failures += await SaveWindowAsync(dispatcher, window, scale, Path.Combine(outputDirectory, $"module-{moduleId}-{suffix}.png"), moduleId);
+
+                    // Вкладка «Налаштування»: налаштування, гарячі клавіші, віджети, дії.
+                    window.OpenModuleSettings(moduleId);
+                    failures += await SaveWindowAsync(
+                        dispatcher, window, scale, Path.Combine(outputDirectory, $"module-{moduleId}-settings-{suffix}.png"), $"{moduleId}-settings");
                 }
             }
 
