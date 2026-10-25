@@ -77,6 +77,16 @@ public sealed class ModuleInfo
     public ModuleRunMode RunMode { get; init; }
 
     public string? Changelog { get; init; }
+
+    /// <summary>
+    /// Модуль записано як встановлений, але його файлів немає: видалення лаунчера стирає %LocalAppData%\Kastom
+    /// разом із модулями, а стан у %AppData% лишається. Лаунчер відновлює такі модулі з каталогу сам; якщо не вдалося —
+    /// модуль можна перевстановити.
+    /// </summary>
+    public bool IsMissing { get; init; }
+
+    /// <summary>Файли модуля саме відновлюються з каталогу.</summary>
+    public bool IsRepairing { get; init; }
 }
 
 public sealed record OperationResult(bool Success, string? Error = null, bool RestartRequired = false)

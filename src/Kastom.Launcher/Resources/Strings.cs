@@ -217,4 +217,12 @@ public static class Strings
     public static string SettingsWidgetsOnDesktop => Get(nameof(SettingsWidgetsOnDesktop));
 
     public static string SettingsWidgetsOnDesktopNote => Get(nameof(SettingsWidgetsOnDesktopNote));
+
+    public static string StatusRepairing => Get(nameof(StatusRepairing));
+
+    public static string StatusMissing => Get(nameof(StatusMissing));
+
+    public static string StatusMissingWithReason => Get(nameof(StatusMissingWithReason));
+
+    public static string Reinstall => Get(nameof(Reinstall));
 }

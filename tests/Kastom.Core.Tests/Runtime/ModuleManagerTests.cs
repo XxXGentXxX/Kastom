@@ -143,14 +143,17 @@ public sealed class ModuleManagerTests : IDisposable
     }
 
     [Fact]
-    public async Task Start_MissingManifest_DisablesModule()
+    public async Task Start_MissingManifest_KeepsModuleEnabledAndMarksMissing()
     {
+        // Файлів немає, каталогу теж (див. ModuleRepairTests): модуль не вимикається, а чекає на перевстановлення.
         _f.Register("ghost", "1.0.0", enabled: true);
 
         await _f.Manager.StartAsync(CancellationToken.None);
 
         var info = _f.Info("ghost");
-        Assert.False(info.IsEnabled);
+        Assert.True(info.IsEnabled);
+        Assert.True(info.IsMissing);
+        Assert.False(info.IsRunning);
         Assert.NotNull(info.Error);
         Assert.Equal("ghost", info.Name);
     }

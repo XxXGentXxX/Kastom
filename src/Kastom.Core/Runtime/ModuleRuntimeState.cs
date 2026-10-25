@@ -14,4 +14,10 @@ internal sealed class ModuleRuntimeState
     public string? Error { get; set; }
 
     public bool RestartRequired { get; set; }
+
+    /// <summary>Модуль є в стані, але його файлів немає (наприклад, лаунчер видалили й поставили знову).</summary>
+    public bool Missing { get; set; }
+
+    /// <summary>Файли модуля саме завантажуються з каталогу заново.</summary>
+    public bool Repairing { get; set; }
 }

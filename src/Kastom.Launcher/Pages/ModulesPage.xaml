@@ -103,7 +103,7 @@
                                     </TextBlock>
 
                                     <WrapPanel Margin="0,14,0,0">
-                                        <Button Content="{x:Static res:Strings.Install}" Padding="16,7" Margin="0,0,8,0"
+                                        <Button Content="{Binding InstallText}" Padding="16,7" Margin="0,0,8,0"
                                                 Style="{DynamicResource AccentButtonStyle}"
                                                 IsEnabled="{Binding ButtonsEnabled}"
                                                 Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}"

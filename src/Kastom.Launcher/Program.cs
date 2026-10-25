@@ -11,6 +11,9 @@ public static class Program
     {
         // Velopack першим: він обробляє службові запуски інсталятора й оновлювача (--veloapp-*).
         VelopackApp.Build()
+            // Оновлення ставить лише VelopackLauncherUpdater, після перевірки SHA-256 за підписаним каталогом.
+            // Типово Velopack сам ставить при старті будь-який новіший пакет із теки packages — це обійшло б перевірку.
+            .SetAutoApplyOnStartup(false)
             // Перед видаленням прибираємо автозапуск, щоб у реєстрі не лишився запис на неіснуючий файл.
             .OnBeforeUninstallFastCallback(_ =>
             {

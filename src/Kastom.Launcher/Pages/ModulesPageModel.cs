@@ -304,6 +304,7 @@ public sealed class ModuleCardModel : ObservableObject
     private string _statusText = "";
     private Brush _chipBackground = NeutralBrush;
     private bool _canInstall;
+    private string _installText = Strings.Install;
     private bool _canUpdate;
     private bool _canToggle;
     private string _toggleText = "";
@@ -338,6 +339,8 @@ public sealed class ModuleCardModel : ObservableObject
     public Brush ChipBackground { get => _chipBackground; private set => SetField(ref _chipBackground, value); }
 
     public bool CanInstall { get => _canInstall; private set => SetField(ref _canInstall, value); }
+
+    public string InstallText { get => _installText; private set => SetField(ref _installText, value); }
 
     public bool CanUpdate { get => _canUpdate; private set => SetField(ref _canUpdate, value); }
 
@@ -401,17 +404,29 @@ public sealed class ModuleCardModel : ObservableObject
             _ => NeutralBrush,
         };
 
-        CanInstall = !info.IsInstalled && info.AvailableVersion is not null && info.IsCompatible;
-        CanUpdate = info.IsInstalled && info.HasUpdate;
-        CanToggle = info.IsInstalled;
+        // Модуль без файлів (лаунчер перевстановлювали) не вмикається, а перевстановлюється.
+        var missing = info.IsMissing || info.IsRepairing;
+        CanInstall = info.AvailableVersion is not null && info.IsCompatible
+                     && (!info.IsInstalled || (info.IsMissing && !info.IsRepairing));
+        InstallText = info.IsMissing ? Strings.Reinstall : Strings.Install;
+        CanUpdate = info.IsInstalled && info.HasUpdate && !missing;
+        CanToggle = info.IsInstalled && !missing;
         ToggleText = info.IsEnabled ? Strings.Disable : Strings.Enable;
-        CanRollback = info.IsInstalled && info.PreviousVersion is not null;
+        CanRollback = info.IsInstalled && info.PreviousVersion is not null && !missing;
         RollbackText = info.PreviousVersion is { } previous ? string.Format(Strings.Rollback, previous) : "";
         CanUninstall = info.IsInstalled;
     }
 
     private static (string Text, ChipKind Kind) Status(ModuleInfo info)
     {
+        if (info.IsRepairing) return (Strings.StatusRepairing, ChipKind.Accent);
+        if (info.IsMissing)
+        {
+            return info.Error is { } reason
+                ? (string.Format(Strings.StatusMissingWithReason, reason), ChipKind.Error)
+                : (Strings.StatusMissing, ChipKind.Error);
+        }
+
         if (info.Error is { } error) return (string.Format(Strings.StatusError, error), ChipKind.Error);
         if (info.RestartRequired) return (Strings.StatusRestart, ChipKind.Warning);
         if (!info.IsInstalled)

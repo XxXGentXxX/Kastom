@@ -318,4 +318,16 @@
   <data name="SettingsWidgetsOnDesktopNote" xml:space="preserve">
     <value>Експериментально: Windows не документує цей спосіб. Віджети лежать під вікнами програм, як значки робочого столу, і не приймають введення з клавіатури. Якщо вони поводяться дивно, вимкніть цей режим — тоді Win⁠+⁠D ховатиме їх разом з усіма вікнами.</value>
   </data>
+  <data name="StatusRepairing" xml:space="preserve">
+    <value>Відновлюється…</value>
+  </data>
+  <data name="StatusMissing" xml:space="preserve">
+    <value>Файли модуля зникли</value>
+  </data>
+  <data name="StatusMissingWithReason" xml:space="preserve">
+    <value>Файли модуля зникли: {0}</value>
+  </data>
+  <data name="Reinstall" xml:space="preserve">
+    <value>Перевстановити</value>
+  </data>
 </root>

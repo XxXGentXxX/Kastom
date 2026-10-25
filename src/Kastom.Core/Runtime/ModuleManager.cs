@@ -108,10 +108,13 @@ public sealed class ModuleManager(
             lock (_sync) installedIds = state.State.Modules.Keys.ToArray();
             foreach (var id in installedIds) RemoveStaleVersions(id);
 
+            // Модулі без файлів не запускаємо (інакше збій вимкнув би їх), а відновлюємо після решти.
+            var missing = FindMissing(installedIds);
+
             string[] enabledIds;
             lock (_sync)
             {
-                enabledIds = state.State.Modules.Where(pair => pair.Value.Enabled).Select(pair => pair.Key)
+                enabledIds = state.State.Modules.Where(pair => pair.Value.Enabled && !missing.Contains(pair.Key)).Select(pair => pair.Key)
                     .OrderBy(id => id, StringComparer.Ordinal).ToArray();
             }
 
@@ -120,6 +123,8 @@ public sealed class ModuleManager(
                 linked.Token.ThrowIfCancellationRequested();
                 await LoadAndStartAsync(id, linked.Token);
             }
+
+            if (missing.Count > 0) await RepairMissingAsync(missing, linked.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -236,11 +241,15 @@ public sealed class ModuleManager(
             return OperationResult.Fail(result.Error ?? "Не вдалося встановити модуль.");
 
         var newVersion = result.Manifest.Version;
+        var runtime = GetRuntime(id);
+        // Перевстановлення модуля, чиїх файлів не було: попередньої версії на диску теж немає.
+        var dropPrevious = runtime.Missing && existing?.PreviousVersion is { } previous && ReadManifest(id, previous) is null;
         Commit(() =>
         {
             if (state.State.Modules.TryGetValue(id, out var current))
             {
                 if (current.Version != newVersion) current.PreviousVersion = current.Version;
+                if (dropPrevious) current.PreviousVersion = null;
                 current.Version = newVersion;
 
                 // Вимкнений користувачем модуль оновлення не вмикає.
@@ -255,8 +264,8 @@ public sealed class ModuleManager(
         });
         ForgetManifests(id);
 
-        var runtime = GetRuntime(id);
         runtime.Error = null;
+        runtime.Missing = false;
         RemoveStaleVersions(id);
         return await ApplyVersionAsync(id, runtime, cancellationToken);
     }
@@ -301,6 +310,7 @@ public sealed class ModuleManager(
     private async Task<OperationResult> EnableCoreAsync(string id, CancellationToken cancellationToken)
     {
         if (FindInstalled(id) is null) return OperationResult.Fail("Модуль не встановлено.");
+        if (FindRuntime(id) is { Missing: true }) return OperationResult.Fail("Файлів модуля немає: перевстановіть його.");
 
         Commit(() => state.State.Modules[id].Enabled = true);
         var runtime = GetRuntime(id);
@@ -541,6 +551,131 @@ public sealed class ModuleManager(
         }
     }
 
+    /// <summary>Встановлені модулі, чиєї поточної версії немає на диску (немає теки чи module.json).</summary>
+    private HashSet<string> FindMissing(IEnumerable<string> ids)
+    {
+        var missing = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in ids)
+        {
+            if (FindInstalled(id) is not { } installed || ReadManifest(id, installed.Version) is not null) continue;
+            missing.Add(id);
+            GetRuntime(id).Missing = true;
+            _log.Warn($"Файлів модуля '{id}' {installed.Version} немає (лаунчер видаляли?); спробую відновити з каталогу.");
+        }
+
+        return missing;
+    }
+
+    /// <summary>
+    /// Відновити модулі без файлів: поставити з каталогу ту саму або новішу сумісну версію, зберігши прапорець «увімкнено»,
+    /// і запустити увімкнені. Модуль, якого в каталозі вже немає, прибирається зі стану. Без каталогу (немає мережі)
+    /// модуль лишається з позначкою «файлів немає», і користувач може перевстановити його пізніше.
+    /// </summary>
+    private async Task RepairMissingAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
+    {
+        if (catalog.Current is null)
+        {
+            try
+            {
+                await catalog.RefreshAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Каталог для відновлення модулів недоступний: {ex.Message}");
+            }
+        }
+
+        var known = catalog.Current;
+        foreach (var id in ids.OrderBy(id => id, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (FindInstalled(id) is not { } installed) continue;
+            var runtime = GetRuntime(id);
+
+            if (known is null)
+            {
+                runtime.Error = "каталог недоступний";
+                continue;
+            }
+
+            var entry = known.Modules.FirstOrDefault(e => e.Id == id);
+            if (entry is null)
+            {
+                Commit(() => state.State.Modules.Remove(id));
+                ForgetManifests(id);
+                lock (_sync) _runtime.Remove(id);
+                _log.Info($"Модуль '{id}' прибрано зі списку встановлених: його файлів немає, а в каталозі його вже немає.");
+                continue;
+            }
+
+            if (!ModuleVersion.TryParse(entry.Version, out var available)
+                || !ModuleVersion.TryParse(installed.Version, out var current) || available < current)
+            {
+                runtime.Error = $"у каталозі лише версія {entry.Version}";
+                continue;
+            }
+
+            var compatibility = CompatibilityCheck(entry.ContractVersion, entry.MinLauncherVersion, launcherVersion);
+            if (!compatibility.IsCompatible)
+            {
+                runtime.Error = compatibility.Reason ?? "версія з каталогу несумісна з цим лаунчером";
+                continue;
+            }
+
+            if (!await ReinstallMissingAsync(id, entry, installed, runtime, cancellationToken)) continue;
+            if (FindInstalled(id) is { Enabled: true }) await LoadAndStartAsync(id, cancellationToken);
+            RaiseChanged();
+        }
+    }
+
+    private async Task<bool> ReinstallMissingAsync(
+        string id, CatalogEntry entry, InstalledModuleState installed, ModuleRuntimeState runtime, CancellationToken cancellationToken)
+    {
+        runtime.Error = null;
+        runtime.Repairing = true;
+        RaiseChanged();
+        try
+        {
+            var result = await installer.InstallAsync(entry, null, cancellationToken);
+            if (!result.Success || result.Manifest is null)
+            {
+                runtime.Error = $"не вдалося відновити: {result.Error ?? "?"}";
+                return false;
+            }
+
+            var newVersion = result.Manifest.Version;
+            var keepPrevious = installed.PreviousVersion is { } previous && previous != newVersion && ReadManifest(id, previous) is not null;
+            Commit(() =>
+            {
+                if (!state.State.Modules.TryGetValue(id, out var current)) return;
+                current.Version = newVersion;
+                if (!keepPrevious) current.PreviousVersion = null;
+            });
+            ForgetManifests(id);
+            runtime.Missing = false;
+            _log.Info($"Модуль '{id}' {newVersion} відновлено з каталогу.");
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            runtime.Error = $"не вдалося відновити: {ShortReason(ex)}";
+            _log.Warn($"Не вдалося відновити модуль '{id}': {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            runtime.Repairing = false;
+        }
+    }
+
     private void RemovePendingModules()
     {
         string[] pending;
@@ -632,6 +767,8 @@ public sealed class ModuleManager(
             Error = runtime?.Error,
             RunMode = manifest?.RunMode ?? entry?.RunMode ?? ModuleRunMode.InProcess,
             Changelog = entry?.Changelog,
+            IsMissing = runtime?.Missing ?? false,
+            IsRepairing = runtime?.Repairing ?? false,
         };
     }
 

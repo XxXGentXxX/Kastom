@@ -10,6 +10,8 @@ using Kastom.Core.Models;
 namespace Kastom.Core.Tests.Delivery;
 
 /// <summary>Захист від відкоту каталогу, таймаути читання, залишки staging, зарезервовані імена, реліз лаунчера.</summary>
+// Частина тестів міряє час завантаження: на двоядерній машині CI сусідні тести їх затримували.
+[Collection(TimingSensitiveCollection.Name)]
 public class HardeningTests
 {
     private static readonly ModuleVersion Launcher = ModuleVersion.Parse("1.0.0");
