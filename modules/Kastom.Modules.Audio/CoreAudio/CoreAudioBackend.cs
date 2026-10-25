@@ -51,6 +51,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     private volatile AudioSnapshot _current = AudioSnapshot.Empty;
     private volatile BackendCapabilities _capabilities = BackendCapabilities.None;
     private int _meteringCount;
+    private int _micMeteringCount;
 
     public CoreAudioBackend(IModuleLogger log)
     {
@@ -235,14 +236,16 @@ public sealed class CoreAudioBackend : IAudioBackend
         ReadMicDetails(device);
     });
 
-    public IDisposable BeginMetering()
+    public IDisposable BeginMetering(bool microphone = false)
     {
+        if (microphone && Interlocked.Increment(ref _micMeteringCount) == 1) Post(ReopenCaptureMeter);
         if (Interlocked.Increment(ref _meteringCount) == 1) Post(StartMetering);
-        return new MeteringTicket(this);
+        return new MeteringTicket(this, microphone);
     }
 
-    private void EndMetering()
+    private void EndMetering(bool microphone)
     {
+        if (microphone && Interlocked.Decrement(ref _micMeteringCount) == 0) Post(ReopenCaptureMeter);
         if (Interlocked.Decrement(ref _meteringCount) == 0) Post(StopMetering);
     }
 
@@ -259,10 +262,16 @@ public sealed class CoreAudioBackend : IAudioBackend
             {
                 action();
             }
-            catch (Exception ex) when (Com.IsDisconnect(ex))
+            catch (Exception ex) when (Com.IsServiceGone(ex))
             {
                 OnDisconnected(ex);
                 throw new AudioCommandException($"{what}: звукова служба зникла.", ex);
+            }
+            catch (Exception ex) when (Com.IsDeviceGone(ex))
+            {
+                // Пристрій зник між переліком і командою (висмикнули USB): перелічимо пристрої знову, служба жива.
+                ScheduleDevicesRefresh();
+                throw new AudioCommandException($"{what}: пристрою вже немає.", ex);
             }
             catch (COMException ex)
             {
@@ -273,8 +282,10 @@ public sealed class CoreAudioBackend : IAudioBackend
                 throw new AudioCommandException($"{what}: {ex.Message}", ex);
             }
 
-            // Команда завершується, коли знімок уже показує зміну.
-            Publish();
+            // Команда завершується, коли Current уже показує зміну, а подію Changed групуємо з рештою:
+            // під час перетягування повзунка команди йдуть частіше, ніж мікшеру треба перемальовуватися.
+            _current = BuildSnapshot();
+            MarkDirty();
         });
     }
 
@@ -411,9 +422,14 @@ public sealed class CoreAudioBackend : IAudioBackend
         {
             action();
         }
-        catch (Exception ex) when (Com.IsDisconnect(ex))
+        catch (Exception ex) when (Com.IsServiceGone(ex))
         {
             OnDisconnected(ex);
+        }
+        catch (Exception ex) when (Com.IsDeviceGone(ex))
+        {
+            _log.Info($"Звук ({what}): пристрій зник, перелічую знову.");
+            ScheduleDevicesRefresh();
         }
         catch (Exception ex) when (ex is COMException or InvalidCastException or AudioCommandException)
         {
@@ -527,7 +543,10 @@ public sealed class CoreAudioBackend : IAudioBackend
         catch (Exception ex) when (ex is COMException or InvalidCastException or AudioCommandException)
         {
             DisposeDevice(entry);
-            if (Com.IsDisconnect(ex)) throw;
+            if (Com.IsServiceGone(ex)) throw;
+
+            // Зниклий за мить пристрій (DEVICE_INVALIDATED) — звичайна справа при під'єднанні USB: наступна подія
+            // Windows перелічить пристрої знову.
             _log.Warn($"Пристрій «{entry.Name}» пропущено: {ex.Message}");
             return null;
         }
@@ -1023,13 +1042,13 @@ public sealed class CoreAudioBackend : IAudioBackend
         public string? SessionIconPath { get; set; }
     }
 
-    private sealed class MeteringTicket(CoreAudioBackend owner) : IDisposable
+    private sealed class MeteringTicket(CoreAudioBackend owner, bool microphone) : IDisposable
     {
         private int _disposed;
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0) owner.EndMetering();
+            if (Interlocked.Exchange(ref _disposed, 1) == 0) owner.EndMetering(microphone);
         }
     }
 

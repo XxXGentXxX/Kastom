@@ -69,9 +69,12 @@ internal static class ComConstants
     /// <summary>KSNODETYPE_VOLUME: вузол гучності в топології драйвера (так виглядає й підсилення мікрофона).</summary>
     public static readonly Guid KsNodeTypeVolume = new("3A5ACC00-C557-11D0-8A2B-00A0C9255AC1");
 
-    /// <summary>Ознака «помилка означає, що звукова служба чи пристрій зникли, а не що команда неправильна».</summary>
-    public static bool IsDisconnect(int hresult) =>
-        hresult is AudclntEDeviceInvalidated or AudclntEServiceNotRunning or RpcEDisconnected or RpcSServerUnavailable;
+    /// <summary>Зникла сама звукова служба (перезапуск Audiosrv): усі об'єкти треба створити заново.</summary>
+    public static bool IsServiceGone(int hresult) =>
+        hresult is AudclntEServiceNotRunning or RpcEDisconnected or RpcSServerUnavailable;
+
+    /// <summary>Зник чи змінився один пристрій (висмикнули USB, змінили формат): досить перелічити пристрої знову.</summary>
+    public static bool IsDeviceGone(int hresult) => hresult is AudclntEDeviceInvalidated or ENotFound;
 }
 
 [StructLayout(LayoutKind.Sequential)]

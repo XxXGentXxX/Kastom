@@ -63,12 +63,19 @@ public sealed class CoreAudioPureTests
     [Fact]
     public void DisconnectCodesAreRecognised()
     {
-        Assert.True(ComConstants.IsDisconnect(ComConstants.AudclntEServiceNotRunning));
-        Assert.True(ComConstants.IsDisconnect(ComConstants.AudclntEDeviceInvalidated));
-        Assert.True(ComConstants.IsDisconnect(ComConstants.RpcEDisconnected));
-        Assert.False(ComConstants.IsDisconnect(unchecked((int)0x80070057)));
-        Assert.True(Com.IsDisconnect(new AudioCommandException("x", new COMException("x", ComConstants.AudclntEServiceNotRunning))));
-        Assert.False(Com.IsDisconnect(new AudioCommandException("x")));
+        Assert.True(ComConstants.IsServiceGone(ComConstants.AudclntEServiceNotRunning));
+        Assert.True(ComConstants.IsServiceGone(ComConstants.RpcEDisconnected));
+        Assert.False(ComConstants.IsServiceGone(ComConstants.AudclntEDeviceInvalidated));
+        Assert.False(ComConstants.IsServiceGone(unchecked((int)0x80070057)));
+
+        // Зник один пристрій — це не зникнення служби: досить перелічити пристрої.
+        Assert.True(ComConstants.IsDeviceGone(ComConstants.AudclntEDeviceInvalidated));
+        Assert.False(ComConstants.IsDeviceGone(ComConstants.AudclntEServiceNotRunning));
+
+        Assert.True(Com.IsServiceGone(new AudioCommandException("x", new COMException("x", ComConstants.AudclntEServiceNotRunning))));
+        Assert.True(Com.IsDeviceGone(new AudioCommandException("x", new COMException("x", ComConstants.AudclntEDeviceInvalidated))));
+        Assert.False(Com.IsServiceGone(new AudioCommandException("x")));
+        Assert.False(Com.IsDeviceGone(new AudioCommandException("x")));
     }
 
     [Fact]

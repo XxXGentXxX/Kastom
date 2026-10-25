@@ -37,19 +37,29 @@ internal static class Com
         }
     }
 
-    /// <summary>HRESULT помилки → виняток команди; зникнення служби звуку окремо позначене.</summary>
+    /// <summary>HRESULT помилки → виняток команди; код Windows лишається у вкладеному COMException.</summary>
     public static void Check(int hresult, string what)
     {
         if (hresult >= 0) return;
-        throw new AudioCommandException($"{what}: 0x{hresult:X8}", ComConstants.IsDisconnect(hresult) ? new COMException(what, hresult) : null);
+        throw new AudioCommandException($"{what}: 0x{hresult:X8}", new COMException(what, hresult));
     }
 
-    public static bool IsDisconnect(Exception exception) =>
+    /// <summary>Виняток означає, що зникла звукова служба (а не один пристрій чи неправильна команда).</summary>
+    public static bool IsServiceGone(Exception exception) =>
         exception switch
         {
-            COMException com => ComConstants.IsDisconnect(com.HResult),
+            COMException com => ComConstants.IsServiceGone(com.HResult),
             InvalidComObjectException => true,
-            AudioCommandException { InnerException: { } inner } => IsDisconnect(inner),
+            AudioCommandException { InnerException: { } inner } => IsServiceGone(inner),
+            _ => false,
+        };
+
+    /// <summary>Виняток означає, що зник чи змінився один пристрій.</summary>
+    public static bool IsDeviceGone(Exception exception) =>
+        exception switch
+        {
+            COMException com => ComConstants.IsDeviceGone(com.HResult),
+            AudioCommandException { InnerException: { } inner } => IsDeviceGone(inner),
             _ => false,
         };
 

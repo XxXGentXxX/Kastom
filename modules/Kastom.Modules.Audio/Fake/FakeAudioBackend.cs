@@ -13,6 +13,7 @@ public sealed class FakeAudioBackend : IAudioBackend
     private readonly Dictionary<string, MicDetails> _micDetails;
     private AudioSnapshot _current = AudioSnapshot.Empty;
     private int _metering;
+    private int _micMetering;
 
     public FakeAudioBackend(
         AudioSnapshot initial,
@@ -38,6 +39,9 @@ public sealed class FakeAudioBackend : IAudioBackend
 
     /// <summary>Скільки «квитків» вимірювання зараз відкрито.</summary>
     public int MeteringCount => Volatile.Read(ref _metering);
+
+    /// <summary>Скільки з них просять ще й рівень мікрофона.</summary>
+    public int MicMeteringCount => Volatile.Read(ref _micMetering);
 
     /// <summary>Рівні, які бекенд сам надсилає, щойно відкривається перший квиток вимірювання (для знімків).</summary>
     public PeakSample? AutoPeaks { get; set; }
@@ -215,10 +219,11 @@ public sealed class FakeAudioBackend : IAudioBackend
     /// <summary>Надіслати рівні, ніби їх виміряв бекенд.</summary>
     public void PushPeaks(PeakSample sample) => Peaks?.Invoke(this, sample);
 
-    public IDisposable BeginMetering()
+    public IDisposable BeginMetering(bool microphone = false)
     {
+        if (microphone) Interlocked.Increment(ref _micMetering);
         if (Interlocked.Increment(ref _metering) == 1 && AutoPeaks is { } peaks) Peaks?.Invoke(this, peaks);
-        return new Ticket(this);
+        return new Ticket(this, microphone);
     }
 
     public Task SetDeviceVolumeAsync(string deviceId, float volume) =>
@@ -360,13 +365,15 @@ public sealed class FakeAudioBackend : IAudioBackend
         };
     }
 
-    private sealed class Ticket(FakeAudioBackend owner) : IDisposable
+    private sealed class Ticket(FakeAudioBackend owner, bool microphone) : IDisposable
     {
         private int _disposed;
 
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0) Interlocked.Decrement(ref owner._metering);
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (microphone) Interlocked.Decrement(ref owner._micMetering);
+            Interlocked.Decrement(ref owner._metering);
         }
     }
 }

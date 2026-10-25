@@ -55,13 +55,14 @@ internal sealed class AudioThread : IDisposable
                 completion.SetException(ex);
             }
         });
-        if (!posted) completion.SetException(new ObjectDisposedException(nameof(AudioThread)));
+        if (!posted) completion.SetException(new Model.AudioCommandException("Звук уже зупинено."));
         return completion.Task;
     }
 
-    /// <summary>Виконати один раз через delayMs мілісекунд (у цьому потоці).</summary>
-    public void Schedule(Action action, int delayMs)
+    /// <summary>Виконати один раз через delayMs мілісекунд (у цьому потоці). false — потік уже зупинено, нічого не заплановано.</summary>
+    public bool Schedule(Action action, int delayMs)
     {
+        if (_queue.IsAddingCompleted) return false;
         Timer? timer = null;
         timer = new Timer(_ =>
         {
@@ -73,6 +74,7 @@ internal sealed class AudioThread : IDisposable
         // Таймер треба тримати, інакше збирач сміття прибере його раніше, ніж той спрацює.
         lock (_timers) _timers.Add(timer);
         timer.Change(delayMs, Timeout.Infinite);
+        return true;
     }
 
     public void Dispose()
