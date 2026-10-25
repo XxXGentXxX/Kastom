@@ -7,8 +7,9 @@ using Kastom.Sdk.Services;
 namespace Kastom.Core.Hotkeys;
 
 /// <summary>
-/// Прив'язки клавіш до дій: стан береться зі <see cref="ILauncherStateStore"/>, поєднання реєструє
-/// <see cref="IHotkeyBackend"/>. Усі зміни проходять через повну перебудову (Rebuild).
+/// Прив'язки клавіш до дій: поєднання дії = адреса її розділу (лаунчер чи модуль) + клавіша дії.
+/// Стан береться зі <see cref="ILauncherStateStore"/>, поєднання реєструє <see cref="IHotkeyBackend"/>.
+/// Усі зміни проходять через повну перебудову (Rebuild), тож зміна адреси перереєструє всі дії розділу.
 /// </summary>
 public sealed class HotkeyManager : IHotkeyManager
 {
@@ -28,6 +29,7 @@ public sealed class HotkeyManager : IHotkeyManager
     // Один id на дію на весь час життя процесу, щоб id не плавали між перебудовами.
     private readonly Dictionary<string, int> _ids = new();
     private IReadOnlyList<HotkeyBindingInfo> _bindings = [];
+    private IReadOnlyList<HotkeySectionInfo> _sections = [];
     private int _nextId;
     private int _suspendCount;
     private bool _disposed;
@@ -41,7 +43,11 @@ public sealed class HotkeyManager : IHotkeyManager
 
         _actions.Changed += OnActionsChanged;
         _backend.Pressed += OnPressed;
-        lock (_gate) RebuildAndPersist();
+        lock (_gate)
+        {
+            // Старий launcher.json (повні поєднання) переходить у нову схему до першої перебудови й одразу записується.
+            RebuildAndPersist(LegacyHotkeyMigration.Run(_state.State, _log));
+        }
     }
 
     public IReadOnlyList<HotkeyBindingInfo> Bindings
@@ -49,6 +55,14 @@ public sealed class HotkeyManager : IHotkeyManager
         get
         {
             lock (_gate) return _bindings;
+        }
+    }
+
+    public IReadOnlyList<HotkeySectionInfo> Sections
+    {
+        get
+        {
+            lock (_gate) return _sections;
         }
     }
 
@@ -71,7 +85,36 @@ public sealed class HotkeyManager : IHotkeyManager
 
     public event EventHandler? Changed;
 
-    public HotkeyAssignResult Assign(string globalActionId, HotkeyGesture? gesture)
+    public HotkeyAssignResult SetAddress(string sectionId, HotkeyModifiers address)
+    {
+        string? error;
+        lock (_gate)
+        {
+            if (_sections.All(x => x.Id != sectionId)) return new HotkeyAssignResult(false, HotkeyMessages.UnknownAction);
+            if (!HotkeyAddress.IsValid(address)) return new HotkeyAssignResult(false, HotkeyMessages.NeedModifier);
+
+            error = ApplyChange(() => _state.State.HotkeyAddresses[sectionId] = HotkeyAddress.Format(address));
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        return error is null ? new HotkeyAssignResult(true) : new HotkeyAssignResult(false, error);
+    }
+
+    public HotkeyAssignResult ResetAddress(string sectionId)
+    {
+        string? error;
+        lock (_gate)
+        {
+            if (_sections.All(x => x.Id != sectionId)) return new HotkeyAssignResult(false, HotkeyMessages.UnknownAction);
+
+            error = ApplyChange(() => _state.State.HotkeyAddresses.Remove(sectionId));
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        return error is null ? new HotkeyAssignResult(true) : new HotkeyAssignResult(false, error);
+    }
+
+    public HotkeyAssignResult SetKey(string globalActionId, int? virtualKey)
     {
         string? error;
         lock (_gate)
@@ -79,17 +122,25 @@ public sealed class HotkeyManager : IHotkeyManager
             var target = _actions.Find(globalActionId);
             if (target is null) return new HotkeyAssignResult(false, HotkeyMessages.UnknownAction);
 
-            if (gesture is { } g && Validate(target, g) is { } rejected) return rejected;
+            string text;
+            if (virtualKey is { } key)
+            {
+                if (!IsUsableKey(key) || !KeyNames.TryGetName(key, out text!)) return new HotkeyAssignResult(false, HotkeyMessages.InvalidGesture);
+                if (Validate(target, new HotkeyGesture(AddressOf(target.ModuleId), key)) is { } rejected) return rejected;
+            }
+            else
+            {
+                text = "";
+            }
 
-            var text = gesture?.ToString() ?? "";
-            error = ApplyChange(() => _state.State.Hotkeys[globalActionId] = text);
+            error = ApplyChange(() => _state.State.HotkeyKeys[globalActionId] = text);
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
         return error is null ? new HotkeyAssignResult(true) : new HotkeyAssignResult(false, error);
     }
 
-    public HotkeyAssignResult ResetToDefault(string globalActionId)
+    public HotkeyAssignResult ResetKey(string globalActionId)
     {
         HotkeyAssignResult result;
         lock (_gate)
@@ -97,8 +148,8 @@ public sealed class HotkeyManager : IHotkeyManager
             var target = _actions.Find(globalActionId);
             if (target is null) return new HotkeyAssignResult(false, HotkeyMessages.UnknownAction);
 
-            // Rebuild сам знову видасть типове поєднання (і збереже його), якщо воно вільне.
-            var error = ApplyChange(() => _state.State.Hotkeys.Remove(globalActionId));
+            // Rebuild сам знову видасть типову клавішу (і збереже її), якщо поєднання вільне.
+            var error = ApplyChange(() => _state.State.HotkeyKeys.Remove(globalActionId));
             result = error is null ? DescribeReset(target) : new HotkeyAssignResult(false, error);
         }
 
@@ -154,7 +205,8 @@ public sealed class HotkeyManager : IHotkeyManager
     /// </summary>
     private string? ApplyChange(Action change, Action? revert = null)
     {
-        var snapshot = new Dictionary<string, string>(_state.State.Hotkeys);
+        var keys = new Dictionary<string, string>(_state.State.HotkeyKeys);
+        var addresses = new Dictionary<string, string>(_state.State.HotkeyAddresses);
         try
         {
             change();
@@ -166,17 +218,23 @@ public sealed class HotkeyManager : IHotkeyManager
         {
             _log.Error(HotkeyMessages.Get("LogSaveFailed"), ex);
             revert?.Invoke();
-            _state.State.Hotkeys.Clear();
-            foreach (var (key, value) in snapshot) _state.State.Hotkeys[key] = value;
+            Restore(_state.State.HotkeyKeys, keys);
+            Restore(_state.State.HotkeyAddresses, addresses);
             Rebuild();
             return ex.Message;
         }
     }
 
-    /// <summary>Перебудова з записом типових поєднань, видних уперше (старт, зміна набору дій, кінець Suspend).</summary>
-    private void RebuildAndPersist()
+    private static void Restore(Dictionary<string, string> target, Dictionary<string, string> snapshot)
     {
-        if (!Rebuild()) return;
+        target.Clear();
+        foreach (var (key, value) in snapshot) target[key] = value;
+    }
+
+    /// <summary>Перебудова з записом того, що змінилося без участі користувача: перенесений старий формат, видані типові клавіші.</summary>
+    private void RebuildAndPersist(bool alsoChanged = false)
+    {
+        if (!Rebuild() && !alsoChanged) return;
         try
         {
             _state.Save();
@@ -187,24 +245,15 @@ public sealed class HotkeyManager : IHotkeyManager
         }
     }
 
-    /// <summary>Перевірки перед призначенням; null — поєднання можна брати. Нічого не зберігає.</summary>
+    /// <summary>Перевірки перед призначенням клавіші; null — поєднання можна брати. Нічого не зберігає.</summary>
     private HotkeyAssignResult? Validate(RegisteredAction target, HotkeyGesture gesture)
     {
-        if (!gesture.IsValid) return new HotkeyAssignResult(false, HotkeyMessages.InvalidGesture);
-        if (KeyNames.RequiresModifier(gesture.VirtualKey) && gesture.Modifiers == HotkeyModifiers.None)
-            return new HotkeyAssignResult(false, HotkeyMessages.NeedModifier);
+        if (!IsUsable(gesture)) return new HotkeyAssignResult(false, HotkeyMessages.InvalidGesture);
 
         var targetId = target.GlobalId;
         foreach (var other in _bindings)
         {
             if (other.Action.GlobalId != targetId && other.Gesture == gesture) return Conflict(other.Action);
-        }
-
-        // Явно збережене поєднання теж рахується, навіть якщо його не вдалося зареєструвати.
-        foreach (var (id, text) in _state.State.Hotkeys)
-        {
-            if (id == targetId || !HotkeyGesture.TryParse(text, out var stored) || stored != gesture) continue;
-            if (_actions.Find(id) is { } owner) return Conflict(owner);
         }
 
         if (!Enabled) return null;
@@ -224,12 +273,14 @@ public sealed class HotkeyManager : IHotkeyManager
     private HotkeyAssignResult DescribeReset(RegisteredAction target)
     {
         var binding = _bindings.First(b => b.Action.GlobalId == target.GlobalId);
-        var defaultText = target.Action.DefaultHotkey?.ToString() ?? "";
+        var defaultKey = target.Action.DefaultHotkey?.VirtualKey;
+        var defaultText = defaultKey is { } key ? new HotkeyGesture(AddressOf(target.ModuleId), key).ToString() : "";
         switch (binding.Status)
         {
             case HotkeyBindingStatus.Unassigned:
-                if (target.Action.DefaultHotkey is not { } wanted)
+                if (defaultKey is not { } wantedKey)
                     return new HotkeyAssignResult(false, HotkeyMessages.ResetNoDefault);
+                var wanted = new HotkeyGesture(AddressOf(target.ModuleId), wantedKey);
                 var holder = _bindings.FirstOrDefault(b => b.Action.GlobalId != target.GlobalId && b.Gesture == wanted);
                 return holder is null
                     ? new HotkeyAssignResult(false, HotkeyMessages.Format("ResetNotApplied", defaultText))
@@ -252,8 +303,21 @@ public sealed class HotkeyManager : IHotkeyManager
         }
     }
 
+    /// <summary>Адреса розділу, яка діє зараз; для розділу без дій — збережена чи запасна.</summary>
+    private HotkeyModifiers AddressOf(string sectionId) =>
+        _sections.FirstOrDefault(x => x.Id == sectionId)?.Address ?? ReadAddress(sectionId) ?? HotkeyAddress.Fallback;
+
+    private HotkeyModifiers? ReadAddress(string sectionId)
+    {
+        if (!_state.State.HotkeyAddresses.TryGetValue(sectionId, out var text)) return null;
+        if (HotkeyAddress.TryParse(text, out var address)) return address;
+
+        _log.Warn(HotkeyMessages.Format("LogUnusableAddress", text, sectionId));
+        return null;
+    }
+
     /// <summary>
-    /// Перебудувати всі прив'язки й реєстрації. Типові поєднання, видані вперше, записуються в стан
+    /// Перебудувати всі прив'язки й реєстрації. Типові клавіші, видані вперше, записуються в стан
     /// (на диск — після виклику). Повертає true, якщо стан змінився. Викликати під <see cref="_gate"/>.
     /// </summary>
     private bool Rebuild()
@@ -270,18 +334,31 @@ public sealed class HotkeyManager : IHotkeyManager
             .Select(x => x.action)
             .ToList();
 
-        // Крок 1: поєднання, які користувач задав явно (або навмисно прибрав), і вже видані типові.
+        // Крок 0: адреса кожного розділу — збережена або типова.
+        var sections = new List<HotkeySectionInfo>();
+        var addresses = new Dictionary<string, HotkeyModifiers>();
+        foreach (var group in ordered.GroupBy(a => a.ModuleId))
+        {
+            var fallback = HotkeyAddress.DefaultFor(group.Select(a => a.Action.DefaultHotkey?.Modifiers ?? HotkeyModifiers.None));
+            var address = ReadAddress(group.Key) ?? fallback;
+            addresses[group.Key] = address;
+            sections.Add(new HotkeySectionInfo(group.Key, group.First().ModuleName, address, fallback));
+        }
+
+        _sections = sections;
+
+        // Крок 1: клавіші, які користувач задав явно (або навмисно прибрав), і вже видані типові.
         var gestures = new Dictionary<string, HotkeyGesture?>();
         foreach (var action in ordered)
         {
-            if (!_state.State.Hotkeys.TryGetValue(action.GlobalId, out var text)) continue;
+            if (!_state.State.HotkeyKeys.TryGetValue(action.GlobalId, out var text)) continue;
             if (text.Length == 0)
             {
                 gestures[action.GlobalId] = null;
             }
-            else if (HotkeyGesture.TryParse(text, out var stored) && IsUsable(stored))
+            else if (KeyNames.TryGetKey(text, out var key) && IsUsableKey(key))
             {
-                gestures[action.GlobalId] = stored;
+                gestures[action.GlobalId] = new HotkeyGesture(addresses[action.ModuleId], key);
             }
             else
             {
@@ -290,18 +367,21 @@ public sealed class HotkeyManager : IHotkeyManager
             }
         }
 
-        // Крок 2: типові поєднання — лише там, де вони вільні. Видане типове одразу стає власністю дії
+        // Крок 2: типові клавіші — лише там, де поєднання вільне. Видана типова одразу стає власністю дії
         // (записується в стан), тож пізніший модуль з таким самим типовим уже нічого не забере.
         var changed = false;
         var used = gestures.Values.Where(g => g is not null).Select(g => g!.Value).ToHashSet();
         foreach (var action in ordered)
         {
             if (gestures.ContainsKey(action.GlobalId)) continue;
-            var fallback = action.Action.DefaultHotkey;
-            if (fallback is { } d && IsUsable(d) && used.Add(d))
+            if (action.Action.DefaultHotkey is { } d
+                && IsUsableKey(d.VirtualKey)
+                && KeyNames.TryGetName(d.VirtualKey, out var name)
+                && new HotkeyGesture(addresses[action.ModuleId], d.VirtualKey) is var wanted
+                && used.Add(wanted))
             {
-                gestures[action.GlobalId] = d;
-                _state.State.Hotkeys[action.GlobalId] = d.ToString();
+                gestures[action.GlobalId] = wanted;
+                _state.State.HotkeyKeys[action.GlobalId] = name;
                 changed = true;
             }
             else
@@ -315,9 +395,12 @@ public sealed class HotkeyManager : IHotkeyManager
         var active = new HashSet<HotkeyGesture>();
         foreach (var action in ordered)
         {
+            var defaultGesture = action.Action.DefaultHotkey is { } fromDefault && IsUsableKey(fromDefault.VirtualKey)
+                ? new HotkeyGesture(addresses[action.ModuleId], fromDefault.VirtualKey)
+                : (HotkeyGesture?)null;
             if (gestures[action.GlobalId] is not { } gesture)
             {
-                bindings.Add(new HotkeyBindingInfo(action, null, HotkeyBindingStatus.Unassigned));
+                bindings.Add(new HotkeyBindingInfo(action, null, HotkeyBindingStatus.Unassigned, defaultGesture));
                 continue;
             }
 
@@ -347,7 +430,7 @@ public sealed class HotkeyManager : IHotkeyManager
                 status = HotkeyBindingStatus.TakenBySystem;
             }
 
-            bindings.Add(new HotkeyBindingInfo(action, gesture, status));
+            bindings.Add(new HotkeyBindingInfo(action, gesture, status, defaultGesture));
         }
 
         _bindings = bindings;
@@ -369,6 +452,9 @@ public sealed class HotkeyManager : IHotkeyManager
 
     private static bool IsUsable(HotkeyGesture gesture) =>
         gesture.IsValid && !(KeyNames.RequiresModifier(gesture.VirtualKey) && gesture.Modifiers == HotkeyModifiers.None);
+
+    // Клавіша відома й сама не є модифікатором; модифікатори дає адреса розділу.
+    private static bool IsUsableKey(int virtualKey) => new HotkeyGesture(HotkeyModifiers.Control, virtualKey).IsValid;
 
     private bool TryRegister(int id, HotkeyGesture gesture)
     {

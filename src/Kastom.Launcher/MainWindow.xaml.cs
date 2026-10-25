@@ -30,6 +30,11 @@ public sealed class NavItem
     /// <summary>Id модуля для пунктів «Увімкнені модулі».</summary>
     public string? ModuleId { get; init; }
 
+    /// <summary>Значок модуля (байти PNG) для пунктів «Увімкнені модулі»; null — заміна з першою літерою назви.</summary>
+    public byte[]? Icon { get; init; }
+
+    public bool IsModule => ModuleId is not null;
+
     /// <summary>Назва пункту для UI Automation: екранний диктор читає саме її, а не ім'я класу.</summary>
     public override string ToString() => Title;
 }
@@ -45,6 +50,9 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<NavItem> _items = [];
     private readonly NavItem _modulesHeader = new() { Title = Strings.NavEnabledModules, IsHeader = true };
     private bool _closed;
+
+    // Модуль, сторінку якого треба відкрити одразу на «Налаштуваннях»; споживається при створенні сторінки.
+    private string? _settingsFor;
 
     public MainWindow(LauncherServices services, Action restartLauncher)
     {
@@ -82,6 +90,20 @@ public partial class MainWindow : Window
         if (item is not null) Nav.SelectedItem = item;
     }
 
+    /// <summary>Відкрити сторінку модуля одразу на вкладці «Налаштування».</summary>
+    public void OpenModuleSettings(string moduleId)
+    {
+        if (PageHost.Content is ModulePage { } open && open.ModuleId == moduleId)
+        {
+            open.ShowSettings();
+            return;
+        }
+
+        _settingsFor = moduleId;
+        OpenModulePage(moduleId);
+        _settingsFor = null;
+    }
+
     /// <summary>Відкрити сторінку модуля (навіть якщо його немає серед увімкнених у навігації).</summary>
     public void OpenModulePage(string moduleId)
     {
@@ -116,7 +138,7 @@ public partial class MainWindow : Window
             switch (page)
             {
                 case NavPage.Modules:
-                    return new ModulesPage(_services, Confirm, _restartLauncher);
+                    return new ModulesPage(_services, Confirm, _restartLauncher, OpenModuleSettings);
                 case NavPage.ModuleSettings:
                     return new ModuleSettingsAggregatePage(_services.Modules, _services.Actions, OpenModulePage);
                 case NavPage.Hotkeys:
@@ -138,7 +160,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            return new ModulePage(moduleId, _services.Modules, _services.Actions, _services.Widgets);
+            return new ModulePage(
+                moduleId, _services.Modules, _services.Actions, _services.Widgets, _services.Hotkeys, openSettings: _settingsFor == moduleId);
         }
         catch (Exception exception)
         {
@@ -182,8 +205,8 @@ public partial class MainWindow : Window
         var desired = new List<NavItem>();
         foreach (var module in enabled)
         {
-            var existing = current.FirstOrDefault(i => i.ModuleId == module.Id && i.Title == module.Name);
-            desired.Add(existing ?? new NavItem { Title = module.Name, ModuleId = module.Id });
+            var existing = current.FirstOrDefault(i => i.ModuleId == module.Id && i.Title == module.Name && SameIcon(i.Icon, module.Icon));
+            desired.Add(existing ?? new NavItem { Title = module.Name, ModuleId = module.Id, Icon = module.Icon });
         }
 
         var selectedGone = Nav.SelectedItem is NavItem { ModuleId: not null } selected && !desired.Contains(selected);
@@ -199,6 +222,9 @@ public partial class MainWindow : Window
 
         if (selectedGone) NavigateTo(NavPage.Modules);
     }
+
+    private static bool SameIcon(byte[]? left, byte[]? right) =>
+        left is null ? right is null : right is not null && left.AsSpan().SequenceEqual(right);
 
     private void OnClosed(object? sender, EventArgs e)
     {

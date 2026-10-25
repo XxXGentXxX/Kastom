@@ -9,10 +9,12 @@ public partial class ModulesPage : UserControl, IDisposable
 {
     private readonly ModulesPageModel _model;
     private readonly Action _restartLauncher;
+    private readonly Action<string> _openModuleSettings;
 
-    public ModulesPage(LauncherServices services, Func<string, bool> confirm, Action restartLauncher)
+    public ModulesPage(LauncherServices services, Func<string, bool> confirm, Action restartLauncher, Action<string> openModuleSettings)
     {
         _restartLauncher = restartLauncher;
+        _openModuleSettings = openModuleSettings;
         _model = new ModulesPageModel(services, confirm);
         DataContext = _model;
         InitializeComponent();
@@ -25,6 +27,11 @@ public partial class ModulesPage : UserControl, IDisposable
     private async void OnCheckClick(object sender, RoutedEventArgs e) => await _model.CheckNowAsync();
 
     private void OnRestartClick(object sender, RoutedEventArgs e) => _restartLauncher();
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (Card(sender) is { } card) _openModuleSettings(card.Id);
+    }
 
     private async void OnInstallClick(object sender, RoutedEventArgs e)
     {

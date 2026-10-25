@@ -1,7 +1,8 @@
 <UserControl x:Class="Kastom.Launcher.Pages.ModulesPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:res="clr-namespace:Kastom.Launcher.Resources">
+             xmlns:res="clr-namespace:Kastom.Launcher.Resources"
+             xmlns:shell="clr-namespace:Kastom.Launcher.Shell">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </UserControl.Resources>
@@ -75,6 +76,9 @@
                                             <TextBlock Text="{Binding StatusText}" FontSize="12"
                                                        TextTrimming="CharacterEllipsis" MaxWidth="360" />
                                         </Border>
+                                        <shell:ModuleIconView DockPanel.Dock="Left" Size="32" Margin="0,0,12,0"
+                                                              Icon="{Binding Icon}" ModuleName="{Binding Name}"
+                                                              VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     </DockPanel>
@@ -103,6 +107,9 @@
                                     </TextBlock>
 
                                     <WrapPanel Margin="0,14,0,0">
+                                        <Button Content="{x:Static res:Strings.ModuleSettingsButton}" Padding="16,7" Margin="0,0,8,0"
+                                                Visibility="{Binding CanOpenSettings, Converter={StaticResource BoolToVisibility}}"
+                                                Click="OnSettingsClick" />
                                         <Button Content="{Binding InstallText}" Padding="16,7" Margin="0,0,8,0"
                                                 Style="{DynamicResource AccentButtonStyle}"
                                                 IsEnabled="{Binding ButtonsEnabled}"

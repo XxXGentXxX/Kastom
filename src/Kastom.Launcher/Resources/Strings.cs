@@ -130,6 +130,8 @@ public static class Strings
 
     public static string Uninstall => Get(nameof(Uninstall));
 
+    public static string ModuleSettingsButton => Get(nameof(ModuleSettingsButton));
+
     public static string ConfirmTitle => Get(nameof(ConfirmTitle));
 
     public static string UninstallConfirm => Get(nameof(UninstallConfirm));

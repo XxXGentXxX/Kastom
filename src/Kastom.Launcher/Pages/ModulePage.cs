@@ -3,31 +3,58 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using Kastom.Core.Abstractions;
+using Kastom.Launcher.Hotkeys;
 using Kastom.Launcher.Resources;
 using Kastom.Launcher.Settings;
+using Kastom.Launcher.Shell;
 using Kastom.Launcher.Widgets;
 using Kastom.Sdk.Actions;
+using Kastom.Sdk.Settings;
 
 namespace Kastom.Launcher.Pages;
 
-/// <summary>Сторінка одного модуля: власна сторінка, налаштування, віджети, дії.</summary>
+/// <summary>
+/// Сторінка одного модуля. Якщо в модуля є власна сторінка, угорі дві вкладки: «Модуль» (власна сторінка) і «Налаштування»;
+/// якщо немає, одразу налаштування. «Налаштування» — налаштування модуля, гарячі клавіші, віджети, дії.
+/// </summary>
 public sealed class ModulePage : UserControl
 {
     private readonly string _moduleId;
     private readonly IModuleManager _modules;
     private readonly IActionCatalog _actions;
     private readonly WidgetHost _widgets;
+    private readonly IHotkeyManager? _hotkeys;
     private readonly StackPanel _root = new() { Margin = new Thickness(24) };
     private readonly Dictionary<string, ToggleButton> _widgetToggles = new();
+    private readonly ContentControl _moduleTabHost = new();
+    private readonly ContentControl _settingsTabHost = new();
     private string? _signature;
+    private bool _settingsSelected;
+    private TabControl? _tabs;
 
-    public ModulePage(string moduleId, IModuleManager modules, IActionCatalog actions, WidgetHost widgets)
+    // Вміст вкладки «Налаштування» будується з цих даних щоразу, коли вкладку відкривають.
+    private ISettingsRegistry? _settings;
+    private IReadOnlyList<Kastom.Sdk.Widgets.WidgetDefinition> _widgetDefinitions = [];
+    private IReadOnlyList<RegisteredAction> _moduleActions = [];
+
+    public string ModuleId => _moduleId;
+
+    public ModulePage(
+        string moduleId,
+        IModuleManager modules,
+        IActionCatalog actions,
+        WidgetHost widgets,
+        IHotkeyManager? hotkeys,
+        bool openSettings = false)
     {
         _moduleId = moduleId;
         _modules = modules;
         _actions = actions;
         _widgets = widgets;
+        _hotkeys = hotkeys;
+        _settingsSelected = openSettings;
 
         Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _root };
 
@@ -53,8 +80,18 @@ public sealed class ModulePage : UserControl
         // Власну сторінку й вміст створив модуль: не тримаємо їх у дереві, щоб модуль не утримував вікно лаунчера.
         // Наступний Loaded побудує сторінку заново (фабрику SDK викликає щоразу, коли сторінку відкривають).
         _root.Children.Clear();
+        _moduleTabHost.Content = null;
+        _settingsTabHost.Content = null;
+        _tabs = null;
         _widgetToggles.Clear();
         _signature = null;
+    }
+
+    /// <summary>Відкрити вкладку «Налаштування»; без вкладок (у модуля немає власної сторінки) там і так одразу налаштування.</summary>
+    public void ShowSettings()
+    {
+        _settingsSelected = true;
+        if (_tabs is not null) _tabs.SelectedIndex = 1;
     }
 
     private void Unsubscribe()
@@ -113,6 +150,7 @@ public sealed class ModulePage : UserControl
             info?.IsEnabled,
             info?.IsRunning,
             info?.Error,
+            info?.Icon?.Length,
             settings is null ? 0 : RuntimeHelpers.GetHashCode(settings),
             string.Join(",", widgetDefinitions.Select(w => w.Id)),
             string.Join(",", moduleActions.Select(a => a.GlobalId)));
@@ -123,6 +161,9 @@ public sealed class ModulePage : UserControl
 
         _signature = signature;
         _root.Children.Clear();
+        _moduleTabHost.Content = null;
+        _settingsTabHost.Content = null;
+        _tabs = null;
         _widgetToggles.Clear();
 
         if (info is null)
@@ -145,17 +186,75 @@ public sealed class ModulePage : UserControl
             return;
         }
 
-        AddCustomPage(settings);
-        AddSection(UiStrings.SettingsSection, CreateSettingsContent(settings));
-        AddSection(UiStrings.WidgetsSection, CreateWidgetsContent(widgetDefinitions));
-        AddSection(UiStrings.ActionsSection, CreateActionsContent(moduleActions));
-        SyncWidgetToggles();
+        _settings = settings;
+        _widgetDefinitions = widgetDefinitions;
+        _moduleActions = moduleActions;
+
+        if (settings?.CustomPageFactory is null)
+        {
+            _root.Children.Add(CreateSettingsTab());
+            SyncWidgetToggles();
+            return;
+        }
+
+        var tabs = new TabControl { Padding = new Thickness(0, 12, 0, 0), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
+        tabs.Items.Add(new TabItem { Header = UiStrings.ModuleTabModule, Content = _moduleTabHost });
+        tabs.Items.Add(new TabItem { Header = UiStrings.ModuleTabSettings, Content = _settingsTabHost });
+        tabs.SelectedIndex = _settingsSelected ? 1 : 0;
+        tabs.SelectionChanged += (_, e) =>
+        {
+            // Вибір у списках усередині вкладок теж спливає сюди; нам потрібна лише зміна самої вкладки.
+            if (!ReferenceEquals(e.OriginalSource, tabs)) return;
+            _settingsSelected = tabs.SelectedIndex == 1;
+            ShowSelectedTab();
+        };
+        _tabs = tabs;
+        _root.Children.Add(tabs);
+        ShowSelectedTab();
+    }
+
+    // Невибрану вкладку звільняємо: власну сторінку модуля (мікшер із таймерами) не тримаємо, поки її не видно.
+    private void ShowSelectedTab()
+    {
+        _widgetToggles.Clear();
+        if (_settingsSelected)
+        {
+            _moduleTabHost.Content = null;
+            _settingsTabHost.Content = CreateSettingsTab();
+            SyncWidgetToggles();
+        }
+        else
+        {
+            _settingsTabHost.Content = null;
+            _moduleTabHost.Content = CreateCustomPage(_settings?.CustomPageFactory);
+        }
+    }
+
+    private UIElement CreateSettingsTab()
+    {
+        var tab = new StackPanel();
+        tab.Children.Add(CreateSection(UiStrings.SettingsSection, CreateSettingsContent(_settings)));
+        if (_hotkeys is not null && _moduleActions.Count > 0)
+            tab.Children.Add(CreateSection(UiStrings.HotkeysSection, new ModuleHotkeysEditor(_hotkeys, _moduleId)));
+        tab.Children.Add(CreateSection(UiStrings.WidgetsSection, CreateWidgetsContent(_widgetDefinitions)));
+        tab.Children.Add(CreateSection(UiStrings.ActionsSection, CreateActionsContent(_moduleActions)));
+        return tab;
     }
 
     private static UIElement CreateHeader(ModuleInfo info)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
-        panel.Children.Add(UiTheme.Label(info.Name, 24, semibold: true));
+        var title = new StackPanel { Orientation = Orientation.Horizontal };
+        title.Children.Add(new ModuleIconView
+        {
+            Icon = info.Icon,
+            ModuleName = info.Name,
+            Size = 24,
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        title.Children.Add(UiTheme.Label(info.Name, 24, semibold: true));
+        panel.Children.Add(title);
 
         var status = !info.IsInstalled
             ? UiStrings.ModuleNotInstalled
@@ -185,12 +284,11 @@ public sealed class ModulePage : UserControl
         return panel;
     }
 
-    private void AddCustomPage(Kastom.Sdk.Settings.ISettingsRegistry? settings)
+    private static UIElement CreateCustomPage(Func<UIElement>? factory)
     {
-        var factory = settings?.CustomPageFactory;
         if (factory is null)
         {
-            return;
+            return new Border();
         }
 
         UIElement element;
@@ -210,20 +308,20 @@ public sealed class ModulePage : UserControl
             fe.Margin = new Thickness(0, 0, 0, 16);
         }
 
-        _root.Children.Add(element);
+        return element;
     }
 
-    private void AddSection(string title, UIElement content)
+    private static UIElement CreateSection(string title, UIElement content)
     {
         var body = new StackPanel();
         var header = UiTheme.Label(title, 16, semibold: true);
         header.Margin = new Thickness(0, 0, 0, 8);
         body.Children.Add(header);
         body.Children.Add(content);
-        _root.Children.Add(UiTheme.Card(body, new Thickness(0, 0, 0, 12)));
+        return UiTheme.Card(body, new Thickness(0, 0, 0, 12));
     }
 
-    private UIElement CreateSettingsContent(Kastom.Sdk.Settings.ISettingsRegistry? settings)
+    private UIElement CreateSettingsContent(ISettingsRegistry? settings)
     {
         if (settings is null || settings.Definitions.Count == 0)
         {

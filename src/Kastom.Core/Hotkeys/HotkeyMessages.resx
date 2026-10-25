@@ -28,13 +28,16 @@
     <value>Поєднання вже зайняте Windows або іншою програмою.</value>
   </data>
   <data name="ResetNoDefault" xml:space="preserve">
-    <value>У цієї дії немає поєднання за замовчуванням.</value>
+    <value>У цієї дії немає типової клавіші.</value>
   </data>
   <data name="ResetNotApplied" xml:space="preserve">
     <value>Типове поєднання {0} не застосовано: воно не підходить або вже використане.</value>
   </data>
   <data name="ResetConflict" xml:space="preserve">
     <value>Типове поєднання {0} вже зайняте дією «{1}» (модуль {2}).</value>
+  </data>
+  <data name="LogUnusableAddress" xml:space="preserve">
+    <value>Збережена адреса «{0}» розділу {1} не підходить, взято типову.</value>
   </data>
   <data name="LogSaveFailed" xml:space="preserve">
     <value>Не вдалося записати стан гарячих клавіш; зміну скасовано.</value>

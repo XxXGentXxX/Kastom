@@ -300,6 +300,8 @@ public sealed class ModuleCardModel : ObservableObject
     private string _id = "";
     private string _name = "";
     private string _description = "";
+    private byte[]? _icon;
+    private bool _canOpenSettings;
     private string _versionsText = "";
     private string _statusText = "";
     private Brush _chipBackground = NeutralBrush;
@@ -329,6 +331,11 @@ public sealed class ModuleCardModel : ObservableObject
     public string Name { get => _name; private set => SetField(ref _name, value); }
 
     public string Description { get => _description; private set => SetField(ref _description, value); }
+
+    public byte[]? Icon { get => _icon; private set => SetField(ref _icon, value); }
+
+    /// <summary>Сторінка модуля з вкладкою «Налаштування» є в кожного встановленого модуля.</summary>
+    public bool CanOpenSettings { get => _canOpenSettings; private set => SetField(ref _canOpenSettings, value); }
 
     public bool HasDescription => !string.IsNullOrWhiteSpace(_description);
 
@@ -384,6 +391,9 @@ public sealed class ModuleCardModel : ObservableObject
         Name = info.Name;
         Description = info.Description;
         Raise(nameof(HasDescription));
+        // ModuleInfo щоразу нового складу, а байти ті самі: не міняємо значок, поки вміст не змінився.
+        if (!(_icon is not null && info.Icon is not null && _icon.AsSpan().SequenceEqual(info.Icon))) Icon = info.Icon;
+        CanOpenSettings = info.IsInstalled;
         _isEnabledModule = info.IsEnabled;
 
         var versions = new List<string>(2);

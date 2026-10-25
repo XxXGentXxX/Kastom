@@ -13,6 +13,7 @@ public partial class HotkeyManagerTests
     private static readonly HotkeyGesture CtrlAltM = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'M');
     private static readonly HotkeyGesture CtrlAltN = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'N');
     private static readonly HotkeyGesture CtrlAltK = new(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'K');
+    private const HotkeyModifiers CtrlAlt = HotkeyModifiers.Control | HotkeyModifiers.Alt;
 
     private sealed class Fixture : IDisposable
     {
@@ -68,22 +69,37 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Default_without_modifier_is_skipped()
-    {
-        using var f = Create(Action("audio", "mute", new HotkeyGesture(HotkeyModifiers.None, 'M')));
-
-        var binding = f.Binding("audio/mute");
-        Assert.Null(binding.Gesture);
-        Assert.Equal(HotkeyBindingStatus.Unassigned, binding.Status);
-        Assert.Empty(f.Backend.Registered);
-    }
-
-    [Fact]
-    public void Default_function_key_without_modifier_is_allowed()
+    public void Default_without_modifiers_takes_the_fallback_address()
     {
         using var f = Create(Action("audio", "mute", new HotkeyGesture(HotkeyModifiers.None, 0x7B)));
 
-        Assert.Equal(HotkeyBindingStatus.Active, f.Binding("audio/mute").Status);
+        var binding = f.Binding("audio/mute");
+        Assert.Equal(new HotkeyGesture(HotkeyAddress.Fallback, 0x7B), binding.Gesture);
+        Assert.Equal(HotkeyBindingStatus.Active, binding.Status);
+        Assert.Equal(HotkeyAddress.Fallback, f.Manager.Sections.Single().Address);
+    }
+
+    [Fact]
+    public void Section_without_default_keys_has_fallback_address_and_no_gesture()
+    {
+        using var f = Create(Action("audio", "mute"));
+
+        Assert.Equal(HotkeyAddress.Fallback, f.Manager.Sections.Single().Address);
+        Assert.Equal(HotkeyBindingStatus.Unassigned, f.Binding("audio/mute").Status);
+    }
+
+    [Fact]
+    public void Default_address_is_the_most_common_modifiers_of_default_keys()
+    {
+        using var f = Create(
+            Action("video", "a", new HotkeyGesture(HotkeyModifiers.Control | HotkeyModifiers.Shift, 'A')),
+            Action("video", "b", new HotkeyGesture(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'B')),
+            Action("video", "c", new HotkeyGesture(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'C')));
+
+        var section = Assert.Single(f.Manager.Sections);
+        Assert.Equal(CtrlAlt, section.Address);
+        Assert.Equal(CtrlAlt, section.DefaultAddress);
+        Assert.Equal(new HotkeyGesture(CtrlAlt, 'A'), f.Binding("video/a").Gesture);
     }
 
     [Fact]
@@ -116,7 +132,8 @@ public partial class HotkeyManagerTests
         using var f = new Fixture();
         f.Catalog.Add(Action("audio", "mute", CtrlAltM));
         f.Catalog.Add(Action("video", "cam"));
-        f.State.State.Hotkeys["video/cam"] = CtrlAltM.ToString();
+        f.State.State.HotkeyAddresses["video"] = "Ctrl+Alt";
+        f.State.State.HotkeyKeys["video/cam"] = "M";
         f.Start();
 
         Assert.Equal(HotkeyBindingStatus.Active, f.Binding("video/cam").Status);
@@ -130,7 +147,7 @@ public partial class HotkeyManagerTests
     {
         using var f = new Fixture();
         f.Catalog.Add(Action("audio", "mute", CtrlAltM));
-        f.State.State.Hotkeys["audio/mute"] = "Ctrl+Nonsense";
+        f.State.State.HotkeyKeys["audio/mute"] = "Nonsense";
         f.Start();
 
         Assert.Equal(HotkeyBindingStatus.Unassigned, f.Binding("audio/mute").Status);
@@ -138,16 +155,16 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Assign_succeeds_saves_and_registers()
+    public void SetKey_succeeds_saves_and_registers()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
         var raised = 0;
         f.Manager.Changed += (_, _) => raised++;
 
-        var result = f.Manager.Assign("audio/mute", CtrlAltN);
+        var result = f.Manager.SetKey("audio/mute", 'N');
 
         Assert.True(result.Success);
-        Assert.Equal("Ctrl+Alt+N", f.State.State.Hotkeys["audio/mute"]);
+        Assert.Equal("N", f.State.State.HotkeyKeys["audio/mute"]);
         Assert.Equal(1, f.Saves);
         Assert.Equal(CtrlAltN, f.Binding("audio/mute").Gesture);
         Assert.Equal([CtrlAltN], f.Backend.Registered.Values);
@@ -155,98 +172,102 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Assign_same_gesture_again_succeeds()
+    public void SetKey_same_gesture_again_succeeds()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
 
-        Assert.True(f.Manager.Assign("audio/mute", CtrlAltM).Success);
+        Assert.True(f.Manager.SetKey("audio/mute", 'M').Success);
         Assert.Equal(HotkeyBindingStatus.Active, f.Binding("audio/mute").Status);
     }
 
     [Fact]
-    public void Assign_unknown_action_fails()
+    public void SetKey_unknown_action_fails()
     {
         using var f = Create();
 
-        Assert.False(f.Manager.Assign("nope/none", CtrlAltM).Success);
+        Assert.False(f.Manager.SetKey("nope/none", 'M').Success);
         Assert.Equal(0, f.Saves);
     }
 
     [Fact]
-    public void Assign_without_modifier_is_rejected()
+    public void SetAddress_without_modifiers_is_rejected()
     {
-        using var f = Create(Action("audio", "mute"));
+        using var f = Create(Action("audio", "mute", CtrlAltM));
 
-        var result = f.Manager.Assign("audio/mute", new HotkeyGesture(HotkeyModifiers.None, 'M'));
+        var result = f.Manager.SetAddress("audio", HotkeyModifiers.None);
 
         Assert.False(result.Success);
         Assert.Contains("модифікатор", result.Error);
-        Assert.Empty(f.State.State.Hotkeys);
+        Assert.Empty(f.State.State.HotkeyAddresses);
+        Assert.Equal(0, f.Saves);
     }
 
     [Fact]
-    public void Assign_modifier_only_gesture_is_rejected()
+    public void SetKey_modifier_key_is_rejected()
     {
         using var f = Create(Action("audio", "mute"));
 
-        Assert.False(f.Manager.Assign("audio/mute", new HotkeyGesture(HotkeyModifiers.Control, 0x11)).Success);
+        Assert.False(f.Manager.SetKey("audio/mute", 0x11).Success);
     }
 
     [Fact]
-    public void Assign_internal_conflict_is_rejected_with_conflicting_action()
+    public void SetKey_internal_conflict_is_rejected_with_conflicting_action()
     {
         using var f = Create(
             Action("audio", "mute", CtrlAltM, "Звук"),
             Action("video", "cam"));
+        f.Manager.SetAddress("video", CtrlAlt);
+        var savesBefore = f.Saves;
 
-        var result = f.Manager.Assign("video/cam", CtrlAltM);
+        var result = f.Manager.SetKey("video/cam", 'M');
 
         Assert.False(result.Success);
         Assert.Equal("audio/mute", result.ConflictingActionId);
         Assert.Contains("«mute»", result.Error);
         Assert.Contains("Звук", result.Error);
-        Assert.DoesNotContain("video/cam", f.State.State.Hotkeys.Keys);
-        Assert.Equal(0, f.Saves);
+        Assert.DoesNotContain("video/cam", f.State.State.HotkeyKeys.Keys);
+        Assert.Equal(savesBefore, f.Saves);
     }
 
     [Fact]
-    public void Assign_conflicts_with_explicitly_stored_gesture()
+    public void SetKey_conflicts_with_explicitly_stored_gesture()
     {
         using var f = new Fixture();
         f.Catalog.Add(Action("audio", "mute"));
         f.Catalog.Add(Action("video", "cam"));
-        f.State.State.Hotkeys["audio/mute"] = CtrlAltK.ToString();
+        f.State.State.HotkeyKeys["audio/mute"] = "K";
         f.Start();
 
-        var result = f.Manager.Assign("video/cam", CtrlAltK);
+        var result = f.Manager.SetKey("video/cam", 'K');
 
         Assert.False(result.Success);
         Assert.Equal("audio/mute", result.ConflictingActionId);
     }
 
     [Fact]
-    public void Assign_taken_by_system_is_rejected_and_not_saved()
+    public void SetKey_taken_by_system_is_rejected_and_not_saved()
     {
         using var f = new Fixture();
         f.Backend.Taken.Add(CtrlAltN);
+        f.State.State.HotkeyAddresses["audio"] = "Ctrl+Alt";
         f.Catalog.Add(Action("audio", "mute"));
         f.Start();
 
-        var result = f.Manager.Assign("audio/mute", CtrlAltN);
+        var result = f.Manager.SetKey("audio/mute", 'N');
 
         Assert.False(result.Success);
         Assert.Null(result.ConflictingActionId);
-        Assert.Empty(f.State.State.Hotkeys);
+        Assert.Empty(f.State.State.HotkeyKeys);
         Assert.Equal(0, f.Saves);
         Assert.Empty(f.Backend.Registered);
     }
 
     [Fact]
-    public void Assign_probe_does_not_leave_registration_behind()
+    public void SetKey_probe_does_not_leave_registration_behind()
     {
         using var f = Create(Action("audio", "mute"));
 
-        Assert.True(f.Manager.Assign("audio/mute", CtrlAltN).Success);
+        Assert.True(f.Manager.SetKey("audio/mute", 'N').Success);
 
         Assert.Single(f.Backend.Registered);
         Assert.Equal(f.Backend.RegisterCalls.Count - f.Backend.Registered.Count, f.Backend.UnregisterCalls.Count);
@@ -272,8 +293,8 @@ public partial class HotkeyManagerTests
         using var f = new Fixture();
         f.Catalog.Add(Action("audio", "a"));
         f.Catalog.Add(Action("audio", "b"));
-        f.State.State.Hotkeys["audio/a"] = CtrlAltM.ToString();
-        f.State.State.Hotkeys["audio/b"] = CtrlAltM.ToString();
+        f.State.State.HotkeyKeys["audio/a"] = "M";
+        f.State.State.HotkeyKeys["audio/b"] = "M";
         f.Start();
 
         Assert.Equal(HotkeyBindingStatus.Active, f.Binding("audio/a").Status);
@@ -282,14 +303,14 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Assign_null_stores_empty_string_and_unregisters()
+    public void SetKey_null_stores_empty_string_and_unregisters()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
 
-        var result = f.Manager.Assign("audio/mute", null);
+        var result = f.Manager.SetKey("audio/mute", null);
 
         Assert.True(result.Success);
-        Assert.Equal("", f.State.State.Hotkeys["audio/mute"]);
+        Assert.Equal("", f.State.State.HotkeyKeys["audio/mute"]);
         Assert.Equal(HotkeyBindingStatus.Unassigned, f.Binding("audio/mute").Status);
         Assert.Empty(f.Backend.Registered);
         Assert.Equal(1, f.Saves);
@@ -299,7 +320,7 @@ public partial class HotkeyManagerTests
     public void Explicit_none_survives_rebuild_and_blocks_default()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
-        f.Manager.Assign("audio/mute", null);
+        f.Manager.SetKey("audio/mute", null);
 
         f.Catalog.RaiseChanged();
 
@@ -307,55 +328,55 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void ResetToDefault_restores_and_persists_default()
+    public void ResetKey_restores_and_persists_default()
     {
         using var f = Create(Action("audio", "mute", CtrlAltM));
-        f.Manager.Assign("audio/mute", CtrlAltN);
+        f.Manager.SetKey("audio/mute", 'N');
 
-        var result = f.Manager.ResetToDefault("audio/mute");
+        var result = f.Manager.ResetKey("audio/mute");
 
         Assert.True(result.Success);
-        Assert.Equal("Ctrl+Alt+M", f.State.State.Hotkeys["audio/mute"]); // типове видано знову й записано
+        Assert.Equal("M", f.State.State.HotkeyKeys["audio/mute"]); // типове видано знову й записано
         Assert.Equal(CtrlAltM, f.Binding("audio/mute").Gesture);
         Assert.Equal(HotkeyBindingStatus.Active, f.Binding("audio/mute").Status);
         Assert.Equal([CtrlAltM], f.Backend.Registered.Values);
     }
 
     [Fact]
-    public void ResetToDefault_without_default_reports_failure()
+    public void ResetKey_without_default_reports_failure()
     {
         using var f = Create(Action("audio", "mute"));
 
-        var result = f.Manager.ResetToDefault("audio/mute");
+        var result = f.Manager.ResetKey("audio/mute");
 
         Assert.False(result.Success);
         Assert.False(string.IsNullOrEmpty(result.Error));
     }
 
     [Fact]
-    public void ResetToDefault_taken_by_system_reports_failure()
+    public void ResetKey_taken_by_system_reports_failure()
     {
         using var f = new Fixture();
         f.Backend.Taken.Add(CtrlAltM);
         f.Catalog.Add(Action("audio", "mute", CtrlAltM));
         f.Start();
 
-        var result = f.Manager.ResetToDefault("audio/mute");
+        var result = f.Manager.ResetKey("audio/mute");
 
         Assert.False(result.Success);
         Assert.False(string.IsNullOrEmpty(result.Error));
     }
 
     [Fact]
-    public void ResetToDefault_default_used_by_other_action_reports_failure()
+    public void ResetKey_default_used_by_other_action_reports_failure()
     {
         using var f = Create(
             Action("audio", "mute", CtrlAltM, "Звук"),
             Action("video", "cam", CtrlAltM, "Відео"));
-        f.Manager.Assign("video/cam", CtrlAltN);
-        f.Manager.Assign("audio/mute", CtrlAltM);
+        f.Manager.SetKey("video/cam", 'N');
+        f.Manager.SetKey("audio/mute", 'M');
 
-        var result = f.Manager.ResetToDefault("video/cam");
+        var result = f.Manager.ResetKey("video/cam");
 
         Assert.False(result.Success);
     }
@@ -388,7 +409,7 @@ public partial class HotkeyManagerTests
     }
 
     [Fact]
-    public void Assign_while_disabled_skips_system_probe()
+    public void SetKey_while_disabled_skips_system_probe()
     {
         using var f = new Fixture();
         f.State.State.HotkeysEnabled = false;
@@ -396,7 +417,7 @@ public partial class HotkeyManagerTests
         f.Catalog.Add(Action("audio", "mute"));
         f.Start();
 
-        Assert.True(f.Manager.Assign("audio/mute", CtrlAltN).Success);
+        Assert.True(f.Manager.SetKey("audio/mute", 'N').Success);
         Assert.Empty(f.Backend.RegisterCalls);
     }
 

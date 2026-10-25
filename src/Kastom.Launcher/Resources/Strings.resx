@@ -330,4 +330,7 @@
   <data name="Reinstall" xml:space="preserve">
     <value>Перевстановити</value>
   </data>
+  <data name="ModuleSettingsButton" xml:space="preserve">
+    <value>Налаштування</value>
+  </data>
 </root>

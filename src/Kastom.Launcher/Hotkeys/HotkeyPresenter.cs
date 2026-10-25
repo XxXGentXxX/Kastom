@@ -54,7 +54,7 @@ internal static class HotkeyPresenter
                 return HotkeyStrings.StatusDisabled;
             default:
                 // Типове поєднання є, але його вже тримає інша дія.
-                if (info.Action.Action.DefaultHotkey is { } wanted
+                if (info.DefaultGesture is { } wanted
                     && all.FirstOrDefault(b => b.Action.GlobalId != info.Action.GlobalId && b.Gesture == wanted) is { } holder)
                 {
                     return string.Format(CultureInfo.CurrentCulture, HotkeyStrings.StatusDefaultTaken, holder.Action.Action.Title);
