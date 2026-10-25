@@ -149,6 +149,31 @@ internal static unsafe class ProcessInfo
         }
     }
 
+    /// <summary>Процес ще працює. Немає доступу, щоб перевірити, — вважаємо, що працює.</summary>
+    public static bool IsRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            try
+            {
+                return !process.HasExited;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     public static string? GetProcessName(string? path, int processId)
     {
         if (path is not null) return Path.GetFileNameWithoutExtension(path).ToLowerInvariant();

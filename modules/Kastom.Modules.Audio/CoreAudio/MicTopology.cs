@@ -108,7 +108,13 @@ internal static class MicTopology
         if (part.GetName(out var name) < 0 || !IsBoostName(name)) return null;
 
         var iid = ComConstants.IidAudioVolumeLevel;
-        if (part.Activate(ComConstants.ClsctxAll, ref iid, out var control) < 0 || control is not IAudioVolumeLevel level) return null;
+        if (part.Activate(ComConstants.ClsctxAll, ref iid, out var control) < 0) return null;
+        if (control is not IAudioVolumeLevel level)
+        {
+            Com.Release(control);
+            return null;
+        }
+
         if (level.GetLevelRange(0, out var min, out var max, out var step) < 0 || max <= min)
         {
             Com.Release(level);
@@ -117,6 +123,35 @@ internal static class MicTopology
 
         return new MicBoostControl(level, min, max, step);
     }
+
+    /// <summary>
+    /// Пристрій під'єднано через Bluetooth: фільтр драйвера, до якого веде з'єднувач пристрою, має шлях
+    /// \\?\BTHENUM#…, \\?\BTHHFENUM#… чи \\?\BTHLEDEVICE#…. Не вдалося з'ясувати — вважаємо, що ні.
+    /// </summary>
+    public static bool IsBluetooth(IMMDevice device)
+    {
+        var toRelease = new List<object>();
+        try
+        {
+            var topology = Com.TryActivate<IDeviceTopology>(device, ComConstants.IidDeviceTopology);
+            if (topology is null) return false;
+            toRelease.Add(topology);
+            if (topology.GetConnector(0, out var connector) < 0 || connector is null) return false;
+            toRelease.Add(connector);
+            return connector.GetDeviceIdConnectedTo(out var filter) >= 0 && IsBluetoothPath(filter);
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+        finally
+        {
+            foreach (var item in toRelease) Com.Release(item);
+        }
+    }
+
+    internal static bool IsBluetoothPath(string? filterPath) =>
+        filterPath is not null && filterPath.StartsWith(@"\\?\BTH", StringComparison.OrdinalIgnoreCase);
 
     internal static bool IsBoostName(string? name) =>
         !string.IsNullOrWhiteSpace(name) && BoostNames.Any(b => name.Contains(b, StringComparison.OrdinalIgnoreCase));

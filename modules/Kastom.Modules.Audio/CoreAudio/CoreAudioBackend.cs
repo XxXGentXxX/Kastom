@@ -41,6 +41,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     private bool _alive;
     private bool _publishScheduled;
     private bool _devicesRefreshScheduled;
+    private bool _recoveryScheduled;
     private int _recoveryAttempt;
     private long _sessionSequence;
     private Timer? _meterTimer;
@@ -68,11 +69,12 @@ public sealed class CoreAudioBackend : IAudioBackend
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        lock (_lifecycle) _thread ??= new AudioThread("Kastom.Audio", _log);
-        return _thread.InvokeAsync(() =>
+        AudioThread thread;
+        lock (_lifecycle) thread = _thread ??= new AudioThread("Kastom.Audio", _log);
+        return thread.InvokeAsync(() =>
         {
             _wanted = true;
-            if (!_alive) TryCreate();
+            if (!_alive && !_recoveryScheduled) TryCreate();
         });
     }
 
@@ -208,6 +210,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     public Task SetListenAsync(string captureDeviceId, bool enabled, string? targetDeviceId) => Command("прослуховування", () =>
     {
         var device = RequireDevice(captureDeviceId);
+        if (device.Flow != EDataFlow.Capture) throw new AudioCommandException("Прослуховувати можна лише мікрофон.");
         if (!_capabilities.Listen || _policy is null) throw new AudioCommandException("Прослуховування недоступне.");
         if (targetDeviceId is not null && RequireDevice(targetDeviceId).Flow != EDataFlow.Render)
             throw new AudioCommandException("Прослуховувати можна лише через пристрій виводу.");
@@ -314,11 +317,11 @@ public sealed class CoreAudioBackend : IAudioBackend
         thread?.Post(action);
     }
 
-    private void Schedule(Action action, int delayMs)
+    private bool Schedule(Action action, int delayMs)
     {
         AudioThread? thread;
         lock (_lifecycle) thread = _thread;
-        thread?.Schedule(action, delayMs);
+        return thread?.Schedule(action, delayMs) ?? false;
     }
 
     private void TryCreate()
@@ -363,6 +366,11 @@ public sealed class CoreAudioBackend : IAudioBackend
     private void TearDown()
     {
         _alive = false;
+
+        // Заплановане оновлення, що спрацює вже після відновлення, нічого не зіпсує, а от прапорець, що лишився
+        // піднятим, назавжди заблокував би наступні.
+        _devicesRefreshScheduled = false;
+        _publishScheduled = false;
         StopMeteringCore();
 
         if (_enumerator is not null && _notifications is not null)
@@ -397,7 +405,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     private void OnDisconnected(Exception? reason)
     {
         if (!_alive) return;
-        _log.Warn($"Звукова служба Windows зникла ({reason?.Message}); під'єднаюся знову.");
+        _log.Warn($"Звукова служба Windows зникла ({reason?.Message ?? "сеанси відключено"}); під'єднаюся знову.");
         TearDown();
         Publish();
         ScheduleRecovery();
@@ -405,11 +413,12 @@ public sealed class CoreAudioBackend : IAudioBackend
 
     private void ScheduleRecovery()
     {
-        if (!_wanted) return;
+        if (!_wanted || _recoveryScheduled) return;
         var delay = (int)Math.Min(MaxRecoveryDelayMs, 1000 * Math.Pow(2, Math.Min(_recoveryAttempt, 5)));
         _recoveryAttempt++;
-        Schedule(() =>
+        _recoveryScheduled = Schedule(() =>
         {
+            _recoveryScheduled = false;
             if (_wanted && !_alive) TryCreate();
         }, delay);
     }
@@ -649,6 +658,15 @@ public sealed class CoreAudioBackend : IAudioBackend
             IsSystem = session.IsSystemSoundsSession() == ComConstants.SOk,
         };
         entry.ProcessId = session.GetProcessId(out var processId) >= 0 ? processId : 0;
+
+        // Windows ще довго тримає сеанс програми, що вже закрилася; такий сеанс був би рядком «pid:…», а якщо номер
+        // процесу вже зайняв інший, то й чужою назвою зі значком.
+        if (!entry.IsSystem && entry.ProcessId > 0 && !ProcessInfo.IsRunning(entry.ProcessId))
+        {
+            Com.Release(control);
+            return;
+        }
+
         if (entry.Simple is not null)
         {
             entry.Simple.GetMasterVolume(out var volume);
@@ -704,8 +722,8 @@ public sealed class CoreAudioBackend : IAudioBackend
         {
             // Сеанс програми, що закрилася, Windows ще довго тримає неактивним; мікшер Windows його ховає — і ми теж.
             var process = Process.GetProcessById(processId);
-            process.EnableRaisingEvents = true;
             process.Exited += (_, _) => Post(() => Guarded("процес закрився", () => OnProcessExited(processId)));
+            process.EnableRaisingEvents = true;
             _watchedProcesses[processId] = process;
         }
         catch (Exception)
@@ -738,8 +756,11 @@ public sealed class CoreAudioBackend : IAudioBackend
             return;
         }
 
-        AddSession(device, control);
-        MarkDirty();
+        Guarded("новий сеанс", () =>
+        {
+            AddSession(device, control);
+            MarkDirty();
+        });
     }
 
     private void OnSessionVolume(string deviceId, string instance, float volume, bool muted)
@@ -795,18 +816,21 @@ public sealed class CoreAudioBackend : IAudioBackend
 
     private void ScheduleDevicesRefresh()
     {
-        if (_devicesRefreshScheduled) return;
-        _devicesRefreshScheduled = true;
+        if (_devicesRefreshScheduled || !_alive) return;
 
         // Під'єднання навушників дає кілька подій поспіль; перелічуємо пристрої один раз після них.
-        Schedule(() => Guarded("пристрої", () =>
+        // Прапорець скидаємо першим рядком і поза Guarded: інакше після збою він лишився б піднятим назавжди.
+        _devicesRefreshScheduled = Schedule(() =>
         {
             _devicesRefreshScheduled = false;
-            RefreshDevices();
-            RefreshDefaults();
-            ReopenCaptureMeter();
-            MarkDirty();
-        }), DevicesRefreshDelayMs);
+            Guarded("пристрої", () =>
+            {
+                RefreshDevices();
+                RefreshDefaults();
+                ReopenCaptureMeter();
+                MarkDirty();
+            });
+        }, DevicesRefreshDelayMs);
     }
 
     private void OnDefaultsChanged()
@@ -821,8 +845,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     private void MarkDirty()
     {
         if (_publishScheduled) return;
-        _publishScheduled = true;
-        Schedule(() =>
+        _publishScheduled = Schedule(() =>
         {
             _publishScheduled = false;
             Publish();
@@ -956,12 +979,27 @@ public sealed class CoreAudioBackend : IAudioBackend
     /// </summary>
     private void ReopenCaptureMeter()
     {
-        if (_meterTimer is null) return;
-        if (_captureMeter?.DeviceId == _defaultCapture) return;
+        DeviceEntry? mic = null;
+        var wanted = _alive
+                     && _meterTimer is not null
+                     && Volatile.Read(ref _micMeteringCount) > 0
+                     && _defaultCapture is not null
+                     && _devices.TryGetValue(_defaultCapture, out mic)
+                     && !IsBluetooth(mic);
+        if (wanted && _captureMeter?.DeviceId == _defaultCapture) return;
+
         _captureMeter?.Dispose();
-        _captureMeter = _defaultCapture is not null && _devices.TryGetValue(_defaultCapture, out var mic)
-            ? CaptureMeterStream.TryOpen(mic, _log)
-            : null;
+        _captureMeter = wanted ? CaptureMeterStream.TryOpen(mic!, _log) : null;
+    }
+
+    /// <summary>
+    /// Bluetooth-гарнітура, коли її мікрофон хтось відкриває, перемикається в режим дзвінка (HFP): музика в навушниках
+    /// стає моно й глухою. Тож для неї рівень мікрофона модуль сам не міряє.
+    /// </summary>
+    private static bool IsBluetooth(DeviceEntry device)
+    {
+        device.IsBluetooth ??= MicTopology.IsBluetooth(device.Device);
+        return device.IsBluetooth.Value;
     }
 
     private void SamplePeaks()
@@ -970,11 +1008,18 @@ public sealed class CoreAudioBackend : IAudioBackend
         if (!_alive || _meterTimer is null) return;
 
         var values = new Dictionary<string, float>();
+        var serviceGone = 0;
         Guarded("рівні", () =>
         {
             foreach (var device in _devices.Values)
             {
-                if (device.Meter is not null && device.Meter.GetPeakValue(out var peak) >= 0) values[PeakKeys.Device(device.Id)] = peak;
+                if (device.Meter is not null)
+                {
+                    var hr = device.Meter.GetPeakValue(out var peak);
+                    if (hr >= 0) values[PeakKeys.Device(device.Id)] = peak;
+                    else if (ComConstants.IsServiceGone(hr)) serviceGone = hr;
+                }
+
                 foreach (var session in device.Sessions.Values)
                 {
                     if (session.Meter is null || session.Meter.GetPeakValue(out var sessionPeak) < 0) continue;
@@ -983,6 +1028,13 @@ public sealed class CoreAudioBackend : IAudioBackend
                 }
             }
         });
+
+        // Перезапуск служби звуку інакше помітили б лише на першій команді користувача.
+        if (serviceGone != 0)
+        {
+            OnDisconnected(new COMException("GetPeakValue", serviceGone));
+            return;
+        }
 
         try
         {
@@ -1012,6 +1064,7 @@ public sealed class CoreAudioBackend : IAudioBackend
         public SessionCreatedCallback? SessionCallback { get; set; }
         public Dictionary<string, SessionEntry> Sessions { get; } = new(StringComparer.Ordinal);
         public bool BoostSearched { get; set; }
+        public bool? IsBluetooth { get; set; }
         public MicBoostControl? Boost { get; set; }
         public MicDetails? Details { get; set; }
     }
@@ -1089,6 +1142,7 @@ public sealed class CoreAudioBackend : IAudioBackend
 
             // AUDIO_VOLUME_NOTIFICATION_DATA: GUID guidEventContext (16), BOOL bMuted (4), float fMasterVolume (4).
             // Дані живі лише під час виклику, тож читаємо їх тут.
+            if (Marshal.PtrToStructure<Guid>(notifyData) == owner._eventContext) return ComConstants.SOk;
             var muted = Marshal.ReadInt32(notifyData, 16) != 0;
             var level = BitConverter.Int32BitsToSingle(Marshal.ReadInt32(notifyData, 20));
             owner.Post(() => owner.Guarded("гучність пристрою", () => owner.OnEndpointVolume(deviceId, level, muted)));
@@ -1101,7 +1155,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     {
         public int OnSessionCreated(IAudioSessionControl newSession)
         {
-            owner.Post(() => owner.Guarded("новий сеанс", () => owner.OnSessionCreated(deviceId, newSession)));
+            owner.Post(() => owner.OnSessionCreated(deviceId, newSession));
             return ComConstants.SOk;
         }
     }
@@ -1115,6 +1169,8 @@ public sealed class CoreAudioBackend : IAudioBackend
 
         public int OnSimpleVolumeChanged(float newVolume, bool newMute, ref Guid eventContext)
         {
+            // Свою зміну ми вже записали в стан; запізніле відлуння могло б перебити новіше значення.
+            if (eventContext == owner._eventContext) return ComConstants.SOk;
             owner.Post(() => owner.Guarded("гучність програми", () => owner.OnSessionVolume(deviceId, instance, newVolume, newMute)));
             return ComConstants.SOk;
         }
@@ -1132,7 +1188,11 @@ public sealed class CoreAudioBackend : IAudioBackend
 
         public int OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason)
         {
-            owner.Post(() => owner.Guarded("сеанс відключено", () => owner.OnSessionGone(deviceId, instance)));
+            // ServerShutdown приходить, коли перезапускається служба звуку: інших подій тоді не буде.
+            if (disconnectReason == AudioSessionDisconnectReason.ServerShutdown)
+                owner.Post(() => owner.OnDisconnected(null));
+            else
+                owner.Post(() => owner.Guarded("сеанс відключено", () => owner.OnSessionGone(deviceId, instance)));
             return ComConstants.SOk;
         }
 

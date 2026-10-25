@@ -60,6 +60,26 @@ public sealed class CoreAudioPureTests
     [InlineData(null, false)]
     public void BoostIsFoundByNodeName(string? name, bool expected) => Assert.Equal(expected, MicTopology.IsBoostName(name));
 
+    [Theory]
+    [InlineData(@"\\?\BTHHFENUM#{0000111e-0000-1000-8000-00805f9b34fb}_VID&0001054c_PID&0d58#7&1#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\voice", true)]
+    [InlineData(@"\\?\BTHENUM#{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0001#7&2#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\wave", true)]
+    [InlineData(@"\\?\bthledevice#{...}", true)]
+    [InlineData(@"\\?\USB#VID_17A0&PID_0310&MI_00#7&3#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\global", false)]
+    [InlineData(@"\\?\HDAUDIO#FUNC_01&VEN_10EC#4&1#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\ewave", false)]
+    [InlineData(null, false)]
+    public void BluetoothIsRecognisedByFilterPath(string? path, bool expected) => Assert.Equal(expected, MicTopology.IsBluetoothPath(path));
+
+    [Fact]
+    public void ExitedProcessIsNotRunning()
+    {
+        using var process = Process.Start(new ProcessStartInfo("cmd.exe", "/c exit 0") { CreateNoWindow = true, UseShellExecute = false })!;
+        process.WaitForExit();
+        var processId = process.Id;
+        process.Dispose();
+        Assert.True(ProcessInfo.IsRunning(Environment.ProcessId));
+        Assert.False(ProcessInfo.IsRunning(processId));
+    }
+
     [Fact]
     public void DisconnectCodesAreRecognised()
     {

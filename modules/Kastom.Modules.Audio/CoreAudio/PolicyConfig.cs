@@ -115,19 +115,28 @@ internal enum PropertyArgs
 }
 
 /// <summary>
-/// Що з недокументованих викликів перевірено на справжній Windows окремою пробою (поза процесом лаунчера).
-/// Неперевірене модуль не викликає: помилка в таблиці методів валила б увесь лаунчер.
+/// Які недокументовані виклики модуль робить на якій Windows. Помилка в таблиці методів валила б увесь лаунчер,
+/// тож поза перевіреним діапазоном функцію сховано, а не викликано наосліп.
 /// <para>
-/// Проба 2026-10-25, Windows 11 26H2 (збірка 26300): GetPropertyValue з bFxStore для мікрофона з увімкненим
-/// прослуховуванням повернула VT_BOOL true і id пристрою виводу — те саме, що документоване сховище властивостей;
-/// без bFxStore — порожнє значення. GetPersistedDefaultAudioEndpoint повернула для Chrome справжній id пристрою.
+/// Проба 2026-10-25 поза процесом лаунчера, Windows 11 26H2 (збірка 26300): GetPropertyValue з bFxStore для
+/// мікрофона з увімкненим прослуховуванням повернула VT_BOOL true і id пристрою виводу — те саме, що документоване
+/// сховище властивостей; без bFxStore — порожнє значення. GetPersistedDefaultAudioEndpoint повернула для Chrome
+/// справжній id пристрою.
+/// </para>
+/// <para>
+/// Прослуховування ввімкнено з 24H2 (збірка 26100): 24H2–26H2 — одна кодова база, але перевірено лише 26300.
+/// Вивід програми — зі збірки 21390, де Microsoft змінила IID фабрики: цю форму роками використовує EarTrumpet,
+/// а нову зміну таблиці методів Microsoft супроводжує новим IID, тож QueryInterface просто не вдасться.
+/// Старий IID (Windows 10) не перевірено — там функцію сховано.
 /// </para>
 /// </summary>
 internal static class PolicyAbi
 {
-    /// <summary>Форма Get/SetPropertyValue для «Прослуховувати цей пристрій». Unknown — функцію сховано.</summary>
-    public static PropertyArgs PropertyArgs { get; set; } = PropertyArgs.WithFxStore;
+    private static readonly int Build = Environment.OSVersion.Version.Build;
 
-    /// <summary>Вивід окремої програми (IAudioPolicyConfigFactory) перевірено. false — функцію сховано.</summary>
-    public static bool AppRoutingVerified { get; set; } = true;
+    /// <summary>Форма Get/SetPropertyValue для «Прослуховувати цей пристрій». Unknown — функцію сховано.</summary>
+    public static PropertyArgs PropertyArgs { get; set; } = Build >= 26100 ? PropertyArgs.WithFxStore : PropertyArgs.Unknown;
+
+    /// <summary>Вивід окремої програми (IAudioPolicyConfigFactory) дозволено. false — функцію сховано.</summary>
+    public static bool AppRoutingVerified { get; set; } = Build >= 21390;
 }
