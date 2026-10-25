@@ -137,8 +137,13 @@ public sealed partial class ModuleDefinitionTests
         Assert.Equal("audio", root.GetProperty("id").GetString());
         Assert.Equal(KastomSdk.ContractVersion, root.GetProperty("contractVersion").GetInt32());
         Assert.Equal("Kastom.Modules.Audio.dll", root.GetProperty("entryAssembly").GetString());
-        Assert.Equal("1.2.0", root.GetProperty("version").GetString());
-        Assert.Equal("0.1.2", root.GetProperty("minLauncherVersion").GetString());
+        Assert.Equal("1.2.1", root.GetProperty("version").GetString());
+        Assert.Equal("0.1.3", root.GetProperty("minLauncherVersion").GetString());
+
+        // Модуль посилається на SDK саме цієї версії; лаунчер старіший за minLauncherVersion мав би старішу SDK і
+        // модуля не завантажив би («немає типу …» — так зламався «Звук» 1.2.0 у лаунчері 0.1.2).
+        var sdk = typeof(Model.AudioSnapshot).Assembly.GetReferencedAssemblies().Single(a => a.Name == "Kastom.Sdk");
+        Assert.Equal(new Version(0, 1, 3, 0), sdk.Version);
 
         // Значок модуля лежить поруч із маніфестом і потрапляє у вихідну теку збірки разом із ним.
         var icon = root.GetProperty("icon").GetString();
