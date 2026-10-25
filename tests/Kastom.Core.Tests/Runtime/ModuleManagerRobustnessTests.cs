@@ -5,6 +5,7 @@ using Kastom.Sdk.Settings;
 
 namespace Kastom.Core.Tests.Runtime;
 
+[Collection(TimingSensitiveCollection.Name)]
 public sealed class ModuleManagerRobustnessTests : IDisposable
 {
     private readonly ModuleManagerFixture _f = new();

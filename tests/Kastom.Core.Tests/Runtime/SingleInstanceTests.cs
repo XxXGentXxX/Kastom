@@ -4,9 +4,13 @@ using Kastom.Core.Runtime;
 
 namespace Kastom.Core.Tests.Runtime;
 
+[Collection(TimingSensitiveCollection.Name)]
 public class SingleInstanceTests
 {
     // Кожен тест — своя «пісочниця»: імена mutex і каналу не перетинаються ні з лаунчером, ні з іншими тестами.
+    /// <summary>SignalExisting чекає з'єднання до 3 с і блокує потік: у тестах — поза потоками xUnit.</summary>
+    private static Task<bool> Signal(string message, string scope) => Task.Run(() => SingleInstance.SignalExisting(message, scope));
+
     private static string NewScope() => Path.Combine(Path.GetTempPath(), "kastom-single-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
@@ -49,8 +53,8 @@ public class SingleInstanceTests
             got.Release();
         });
 
-        Assert.True(SingleInstance.SignalExisting("hello", scope));
-        Assert.True(SingleInstance.SignalExisting("show:demo", scope));
+        Assert.True(await Signal("hello", scope));
+        Assert.True(await Signal("show:demo", scope));
         Assert.True(await got.WaitAsync(TimeSpan.FromSeconds(5)));
 
         lock (received) Assert.Equal(["show:demo"], received);
@@ -69,8 +73,8 @@ public class SingleInstanceTests
             second.Release();
         });
 
-        Assert.True(SingleInstance.SignalExisting("show", scope));
-        Assert.True(SingleInstance.SignalExisting("show", scope));
+        Assert.True(await Signal("show", scope));
+        Assert.True(await Signal("show", scope));
         Assert.True(await second.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
@@ -94,7 +98,7 @@ public class SingleInstanceTests
         var delivered = false;
         for (var attempt = 0; attempt < 20 && !delivered; attempt++)
         {
-            delivered = SingleInstance.SignalExisting("show", scope) && await got.WaitAsync(TimeSpan.FromMilliseconds(500));
+            delivered = await Signal("show", scope) && await got.WaitAsync(TimeSpan.FromMilliseconds(500));
         }
 
         Assert.True(delivered);
