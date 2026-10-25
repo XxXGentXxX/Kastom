@@ -384,7 +384,7 @@ public sealed class ModuleManager(
             if (runtime.Module is null) await LoadAsync(id, installed.Version, manifest, runtime, cancellationToken);
             var module = runtime.Module!;
 
-            await RunWithTimeoutAsync(token => startTask = Task.Run(() => module.Instance.StartAsync(token)), ModuleTimeout, "запуск модуля", cancellationToken);
+            await RunWithTimeoutAsync(token => startTask = RunModuleCode(() => module.Instance.StartAsync(token)), ModuleTimeout, "запуск модуля", cancellationToken);
             started = true;
 
             // Дії стають видимими лише для модуля, що запустився.
@@ -459,7 +459,7 @@ public sealed class ModuleManager(
         try
         {
             var module = runtime.Module.Instance;
-            await RunWithTimeoutAsync(token => Task.Run(() => module.StopAsync(token)), timeout, "зупинка модуля", cancellationToken);
+            await RunWithTimeoutAsync(token => RunModuleCode(() => module.StopAsync(token)), timeout, "зупинка модуля", cancellationToken);
         }
         catch (Exception ex)
         {
@@ -474,7 +474,7 @@ public sealed class ModuleManager(
             if (runtime.Module is not null)
             {
                 var module = runtime.Module.Instance;
-                await RunWithTimeoutAsync(token => Task.Run(() => module.StopAsync(token)), ModuleTimeout, "зупинка модуля", CancellationToken.None);
+                await RunWithTimeoutAsync(token => RunModuleCode(() => module.StopAsync(token)), ModuleTimeout, "зупинка модуля", CancellationToken.None);
             }
         }
         catch (Exception ex)
@@ -515,6 +515,14 @@ public sealed class ModuleManager(
 
         return reason;
     }
+
+    /// <summary>
+    /// Синхронна частина StartAsync/StopAsync модуля — на окремому потоці, а не в пулі. Модуль, що блокує потік
+    /// (Thread.Sleep у StopAsync), інакше з'їдав би пул, на якому спрацьовують таймаути й працює решта лаунчера:
+    /// на двоядерному ПК три такі модулі зупинялися 2,5 с замість 0,6 (GitHub Actions, 2026-10-25).
+    /// </summary>
+    private static Task RunModuleCode(Func<Task> call) =>
+        Task.Factory.StartNew(call, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
 
     private static async Task RunWithTimeoutAsync(Func<CancellationToken, Task> operation, TimeSpan timeout, string what, CancellationToken cancellationToken)
     {
