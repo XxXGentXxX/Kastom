@@ -154,7 +154,7 @@ internal static class MicTopology
     }
 
     /// <summary>
-    /// Шлях фільтра Windows віддає з номером з'єднувача попереду — "{2}.\\?\bthhfenum#…" (перевірено на ПК Івана
+    /// Шлях фільтра Windows віддає з номером з'єднувача попереду — "{2}.\\?\bthhfenum#…" (перевірено на справжньому ПК
     /// 2026-10-25), тож шукаємо "\\?\" і дивимось, чи далі йде BTH.
     /// </summary>
     internal static bool IsBluetoothPath(string? filterPath)

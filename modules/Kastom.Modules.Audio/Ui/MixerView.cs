@@ -331,8 +331,10 @@ public sealed class MixerView : UserControl
     private void BuildSections()
     {
         _root.Margin = new Thickness(Mode == MixerMode.Flyout ? 12 : 0);
+        // Сталу ширину сторінки не визначає вміст: інакше згорнутий мікшер (самі назви) був би вужчим за розгорнутий
+        // і кнопка «Згорнути все» після кліку тікала б з-під курсора. 580 вміщається в найменше вікно лаунчера (900 DIP).
         if (Mode == MixerMode.Page) HorizontalAlignment = HorizontalAlignment.Left;
-        if (Mode == MixerMode.Page) MaxWidth = 760;
+        if (Mode == MixerMode.Page) Width = 580;
 
         if (Mode == MixerMode.Flyout) _root.Children.Add(CreateFlyoutHeader());
         else _root.Children.Add(CreatePageHeader());

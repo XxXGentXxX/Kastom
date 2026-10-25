@@ -60,11 +60,12 @@ public sealed class CoreAudioPureTests
     [InlineData(null, false)]
     public void BoostIsFoundByNodeName(string? name, bool expected) => Assert.Equal(expected, MicTopology.IsBoostName(name));
 
-    // Перші шість — як їх віддала Windows на ПК Івана (2026-10-25): з номером з'єднувача попереду.
+    // Перші шість — у тому вигляді, як їх віддала Windows на справжньому ПК (2026-10-25): з номером з'єднувача
+    // попереду. Номери екземплярів пристроїв замінено вигаданими.
     [Theory]
-    [InlineData(@"{2}.\\?\bthhfenum#bthhfpaudio#8&337ce264&1&97#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\voice", true)]
+    [InlineData(@"{2}.\\?\bthhfenum#bthhfpaudio#8&1a2b3c4d&1&97#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\voice", true)]
     [InlineData(@"{2}.\\?\bthenum#{0000110b-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&0d58#7&2#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\wave", true)]
-    [InlineData(@"{2}.\\?\usb#vid_17a0&pid_0303&mi_00#6&3953b649&1&0000#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\global", false)]
+    [InlineData(@"{2}.\\?\usb#vid_17a0&pid_0303&mi_00#6&5e6f7a8b&1&0000#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\global", false)]
     [InlineData(@"{2}.\\?\hdaudio#func_01&ven_10ec&dev_0897#4&2#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\ewave", false)]
     [InlineData(@"{2}.\\?\root#unnamed_device#0001#{6994ad04-93ef-11d0-a3cc-00a0c9223196}", false)]
     [InlineData(@"{2}.\\?\root#media#0000#{6994ad04-93ef-11d0-a3cc-00a0c9223196}\vbaudio", false)]

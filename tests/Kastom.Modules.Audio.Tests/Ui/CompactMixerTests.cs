@@ -4,7 +4,7 @@ using Kastom.Modules.Audio.Ui;
 
 namespace Kastom.Modules.Audio.Tests.Ui;
 
-/// <summary>Згорнутий мікшер (прохання Івана 2026-10-25): лише назва й головний повзунок кожного пристрою.</summary>
+/// <summary>Згорнутий мікшер (прохання власника 2026-10-25): лише назва й головний повзунок кожного пристрою.</summary>
 public sealed class CompactMixerTests
 {
     [Fact]
@@ -57,6 +57,45 @@ public sealed class CompactMixerTests
 
         Assert.False(f.Settings.GetBool(SettingKeys.Compact));
         Assert.All(f.View.OutputCards, c => Assert.True(c.AreAppsShown));
+    });
+
+    [Fact]
+    public void OpenMicSettingsHideWhenCollapsedAndReturnAfterwards() => Sta.Run(() =>
+    {
+        var f = MixerFixture.Create(MixerMode.Flyout);
+        var mic = f.Input(DemoIds.HeadsetMic);
+        mic.ExpandButton!.RaiseEvent(new System.Windows.RoutedEventArgs(ButtonBase.ClickEvent));
+        Sta.DoEvents();
+        Assert.Equal(System.Windows.Visibility.Visible, mic.MicSettings!.Visibility);
+
+        f.View.CompactButton.RaiseEvent(new System.Windows.RoutedEventArgs(ButtonBase.ClickEvent));
+        Sta.DoEvents();
+        Assert.Equal(System.Windows.Visibility.Collapsed, mic.MicSettings.Visibility);
+
+        f.View.CompactButton.RaiseEvent(new System.Windows.RoutedEventArgs(ButtonBase.ClickEvent));
+        Sta.DoEvents();
+        Assert.Equal(System.Windows.Visibility.Visible, mic.MicSettings.Visibility);
+        Assert.Equal(System.Windows.Visibility.Visible, mic.ExpandButton.Visibility);
+    });
+
+    [Fact]
+    public void ChangeFromAnotherThreadIsApplied() => Sta.Run(() =>
+    {
+        var f = MixerFixture.Create(MixerMode.Flyout);
+        Task.Run(() => f.Settings.Set(SettingKeys.Compact, true)).Wait();
+        Sta.DoEvents();
+        Assert.All(f.View.OutputCards, c => Assert.False(c.AreAppsShown));
+    });
+
+    [Fact]
+    public void ChangeWhileDetachedIsPickedUpOnAttach() => Sta.Run(() =>
+    {
+        var f = MixerFixture.Create(MixerMode.Flyout);
+        f.View.Detach();
+        f.Settings.Set(SettingKeys.Compact, true);
+        f.View.Attach();
+        Sta.DoEvents();
+        Assert.All(f.View.OutputCards, c => Assert.False(c.AreAppsShown));
     });
 
     [Fact]
