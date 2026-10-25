@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-25T12:12:26.953772+00:00",
+  "generatedAt": "2026-10-25T12:29:13.5708259+00:00",
   "modules": [
     {
       "id": "demo",
@@ -17,8 +17,8 @@
     }
   ],
   "launcher": {
-    "version": "0.1.0",
-    "sha256": "e7b80ad5e3f6579ec54d01730750c03a50062b61315dc859556e7d44dfde7bbc",
-    "fileName": "Kastom-0.1.0-full.nupkg"
+    "version": "0.1.1",
+    "sha256": "c1f1cfddc30acca7abb9099d5b888a1ff58efd85995e749370f05421efaac0d5",
+    "fileName": "Kastom-0.1.1-full.nupkg"
   }
 }
