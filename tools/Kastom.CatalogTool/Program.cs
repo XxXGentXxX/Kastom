@@ -23,6 +23,7 @@ internal static class CatalogToolCli
                   Без --force наявний файл ключа не перезаписується.
           pack    --dir <папка збірки модуля> --out <файл.zip>
                   Запакувати збірку модуля (потрібен правильний module.json) у zip.
+                  Якщо module.json називає значок ("icon": "icon.png"), файл має існувати й бути PNG до 32 КБ.
           catalog --packages <папка з zip> --base-url <адреса> --out <catalog.json>
                   [--base <catalog.json> [--public <файл або base64>]]
                   [--launcher-package <Kastom-X.Y.Z-full.nupkg> --launcher-version <X.Y.Z>]
@@ -34,6 +35,9 @@ internal static class CatalogToolCli
                   База без підпису, з чужим підписом, без modules чи generatedAt або з file://-адресами
                   при https --base-url відхиляється. Підписана база з порожнім списком модулів дозволена
                   (так буває, коли відкликано останній модуль).
+                  Значок модуля (поле icon у module.json пакета) читається з zip, перевіряється (PNG, до 32 КБ)
+                  й іде в запис каталогу полем icon у base64; неправильний значок — помилка.
+                  Записи бази, які не замінено, лишаються з їхніми значками.
                   Версія пакета має бути новішою за версію в базі, інакше помилка:
                   той самий номер версії з іншим вмістом зламав би вже встановлені копії.
                   Час створення нового каталогу має бути строго пізніший за час бази.
@@ -123,6 +127,11 @@ internal static class CatalogToolCli
         var manifest = ReadManifest(File.ReadAllBytes(manifestPath), manifestPath);
         if (!File.Exists(Path.Combine(dir, manifest.EntryAssembly)))
             throw new IOException($"Збірку '{manifest.EntryAssembly}' з module.json не знайдено в папці.");
+        if (manifest.Icon is not null)
+        {
+            ModuleIcons.ReadFromDirectory(dir, manifest.Icon, out var iconProblem);
+            if (iconProblem is not null) throw new InvalidDataException($"{manifestPath}: {iconProblem}");
+        }
 
         var files = Directory.GetFiles(dir, "*", SearchOption.AllDirectories)
             .Where(f => !string.Equals(Path.GetFullPath(f), outPath, StringComparison.OrdinalIgnoreCase))
@@ -169,6 +178,7 @@ internal static class CatalogToolCli
         foreach (var zip in Directory.GetFiles(packages, "*.zip").OrderBy(f => f, StringComparer.Ordinal))
         {
             var manifest = ReadManifestFromZip(zip);
+            var icon = ReadIconFromZip(zip, manifest);
             var bytes = File.ReadAllBytes(zip);
             var entry = new CatalogEntry
             {
@@ -182,6 +192,7 @@ internal static class CatalogToolCli
                 Url = baseUrl + "/" + Path.GetFileName(zip),
                 Sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)),
                 Size = bytes.LongLength,
+                Icon = icon is null ? null : Convert.ToBase64String(icon),
             };
 
             var problem = CatalogEntryValidator.Validate(entry, allowFileUrls);
@@ -248,6 +259,10 @@ internal static class CatalogToolCli
         {
             throw new CatalogValidationException($"Базовий каталог {path} не пройшов перевірку: {ex.Message}");
         }
+
+        // Значок бази, який лаунчер відкинув би, опублікований вигляд запису втратить: видавцю про це треба знати.
+        foreach (var iconProblem in catalog.IconProblems)
+            Console.WriteLine($"Увага: у базовому каталозі {iconProblem}");
 
         // Типові значення полів не повинні видавати відсутні дані за справжні: `{"schemaVersion":1}` теж проходить розбір.
         using var document = JsonDocument.Parse(bytes);
@@ -362,6 +377,28 @@ internal static class CatalogToolCli
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return ReadManifest(buffer.ToArray(), zipPath);
+    }
+
+    /// <summary>Значок пакета за шляхом із module.json або null, якщо module.json значка не називає. Неправильний значок — помилка.</summary>
+    private static byte[]? ReadIconFromZip(string zipPath, ModuleManifest manifest)
+    {
+        if (manifest.Icon is null) return null;
+        var name = Path.GetFileName(zipPath);
+        var pathProblem = ModuleIcons.ValidatePath(manifest.Icon);
+        if (pathProblem is not null) throw new InvalidDataException($"{name}: module.json: {pathProblem}");
+
+        using var archive = ZipFile.OpenRead(zipPath);
+        var entry = archive.GetEntry(manifest.Icon)
+            ?? throw new InvalidDataException($"{name}: файлу значка '{manifest.Icon}' з module.json немає в архіві.");
+        if (entry.Length > ModuleIcons.MaxSize)
+            throw new InvalidDataException($"{name}: значок '{manifest.Icon}' завеликий: {entry.Length} байтів, найбільше {ModuleIcons.MaxSize}.");
+        using var stream = entry.Open();
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        var data = buffer.ToArray();
+        var problem = ModuleIcons.ValidateData(data);
+        if (problem is not null) throw new InvalidDataException($"{name}: значок '{manifest.Icon}': {problem}");
+        return data;
     }
 
     /// <summary>Читає module.json і перевіряє поля, які потрібні каталогу й встановленню.</summary>

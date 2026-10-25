@@ -1,5 +1,6 @@
 using System.Reflection;
 using Kastom.Core.Abstractions;
+using Kastom.Core.Catalog;
 using Kastom.Core.Installation;
 using Kastom.Core.Models;
 using Kastom.Sdk;
@@ -32,6 +33,10 @@ public sealed class ModuleManager(
     private readonly object _sync = new();
     private readonly Dictionary<string, ModuleRuntimeState> _runtime = new();
     private readonly Dictionary<(string Id, string Version), ModuleManifest> _manifests = new();
+
+    // Значок читається з диска один раз на версію (null теж запам'ятовується); значок з каталогу розкодовується один раз на рядок.
+    private readonly Dictionary<(string Id, string Version), byte[]?> _installedIcons = new();
+    private readonly Dictionary<string, (string Base64, byte[]? Png)> _catalogIcons = new();
     private readonly IModuleLogger _log = loggerFactory("launcher");
     private EventHandler? _changed;
     private bool _catalogHooked;
@@ -777,6 +782,7 @@ public sealed class ModuleManager(
             Error = runtime?.Error,
             RunMode = manifest?.RunMode ?? entry?.RunMode ?? ModuleRunMode.InProcess,
             Changelog = entry?.Changelog,
+            Icon = ResolveIcon(id, installed, manifest, entry),
             IsMissing = runtime?.Missing ?? false,
             IsRepairing = runtime?.Repairing ?? false,
         };
@@ -811,7 +817,65 @@ public sealed class ModuleManager(
         lock (_sync)
         {
             foreach (var key in _manifests.Keys.Where(k => k.Id == id).ToList()) _manifests.Remove(key);
+            foreach (var key in _installedIcons.Keys.Where(k => k.Id == id).ToList()) _installedIcons.Remove(key);
         }
+    }
+
+    /// <summary>Значок встановленої версії, а якщо його немає — значок із каталогу. Помилки значка модуль не зачіпають.</summary>
+    private byte[]? ResolveIcon(string id, InstalledModuleState? installed, ModuleManifest? manifest, CatalogEntry? entry)
+    {
+        if (installed is not null && manifest?.Icon is { } iconPath)
+        {
+            var fromPackage = ReadInstalledIcon(id, installed.Version, iconPath);
+            if (fromPackage is not null) return fromPackage;
+        }
+
+        return entry?.Icon is { } base64 ? CatalogIcon(id, base64) : null;
+    }
+
+    private byte[]? ReadInstalledIcon(string id, string version, string iconPath)
+    {
+        lock (_sync)
+        {
+            if (_installedIcons.TryGetValue((id, version), out var cached)) return cached;
+        }
+
+        byte[]? icon = null;
+        try
+        {
+            icon = ModuleIcons.ReadFromDirectory(paths.ModuleInstallDirectory(id, version), iconPath, out var problem);
+            if (problem is not null) _log.Warn($"Модуль '{id}' {version}: {problem}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Не вдалося прочитати значок модуля '{id}' {version}: {ex.Message}");
+        }
+
+        lock (_sync) _installedIcons[(id, version)] = icon;
+        return icon;
+    }
+
+    private byte[]? CatalogIcon(string id, string base64)
+    {
+        lock (_sync)
+        {
+            if (_catalogIcons.TryGetValue(id, out var cached) && cached.Base64 == base64) return cached.Png;
+        }
+
+        byte[]? png = null;
+        try
+        {
+            // Перевіряльник каталогу вже відкинув неправильні значки; повторна перевірка страхує від каталогів не з нього.
+            if (!ModuleIcons.TryDecode(base64, out png, out var problem))
+                _log.Warn($"Модуль '{id}': значок з каталогу відкинуто: {problem}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Не вдалося розкодувати значок модуля '{id}' з каталогу: {ex.Message}");
+        }
+
+        lock (_sync) _catalogIcons[id] = (base64, png);
+        return png;
     }
 
     private InstalledModuleState? FindInstalled(string id)
