@@ -71,7 +71,7 @@ jobs:
       - name: Пакування Velopack
         # Параметри ті самі, що в scripts\pack-launcher.ps1.
         run: |
-          vpk pack --packId Kastom --packVersion $env:VERSION --packDir artifacts/publish --mainExe Kastom.exe --packTitle Kastom --outputDir Releases
+          vpk pack --packId Kastom --packVersion $env:VERSION --packDir artifacts/publish --mainExe Kastom.exe --packTitle Kastom --runtime win-x64 --outputDir Releases
           if ($LASTEXITCODE -ne 0) { throw "vpk pack завершився з кодом $LASTEXITCODE" }
 
       - name: Файли релізу як артефакт

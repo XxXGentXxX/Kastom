@@ -1,4 +1,4 @@
-# Збирає лаунчер і пакує його Velopack-ом у Releases\.
+﻿# Збирає лаунчер і пакує його Velopack-ом у Releases\.
 # Один раз встановіть інструмент: dotnet tool install -g vpk
 # Запуск: .\scripts\pack-launcher.ps1 [-Version 0.1.0]
 param(
@@ -17,7 +17,7 @@ if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
 & $Dotnet publish $project -c Release -r win-x64 --self-contained true -p:Version=$Version -o $publish
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish завершився з кодом $LASTEXITCODE" }
 
-vpk pack --packId Kastom --packVersion $Version --packDir $publish --mainExe Kastom.exe --packTitle Kastom --outputDir $releases
+vpk pack --packId Kastom --packVersion $Version --packDir $publish --mainExe Kastom.exe --packTitle Kastom --runtime win-x64 --outputDir $releases
 if ($LASTEXITCODE -ne 0) { throw "vpk pack завершився з кодом $LASTEXITCODE" }
 
 Write-Host "Готово: $releases"
