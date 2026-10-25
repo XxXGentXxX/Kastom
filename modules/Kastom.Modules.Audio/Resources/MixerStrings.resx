@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- Розділи -->
+  <data name="OutputSection" xml:space="preserve"><value>Вивід</value></data>
+  <data name="InputSection" xml:space="preserve"><value>Мікрофони</value></data>
+  <data name="NoOutputs" xml:space="preserve"><value>Немає пристроїв виводу</value></data>
+  <data name="NoInputs" xml:space="preserve"><value>Немає мікрофонів</value></data>
+  <data name="AudioUnavailable" xml:space="preserve"><value>Звукова служба Windows недоступна</value></data>
+  <data name="FlyoutTitle" xml:space="preserve"><value>Звук</value></data>
+
+  <!-- Картки пристроїв -->
+  <data name="BadgeDefault" xml:space="preserve"><value>Основний</value></data>
+  <data name="BadgeCommunications" xml:space="preserve"><value>Для зв'язку</value></data>
+  <data name="MakeDefault" xml:space="preserve"><value>Зробити основним</value></data>
+  <data name="MakeCommunications" xml:space="preserve"><value>Для зв'язку</value></data>
+  <data name="MakeDefaultTooltipFormat" xml:space="preserve"><value>Зробити основним пристроєм: {0}</value></data>
+  <data name="MakeCommunicationsTooltipFormat" xml:space="preserve"><value>Зробити пристроєм для зв'язку: {0}</value></data>
+  <data name="MakeDefaultNameFormat" xml:space="preserve"><value>Зробити основним: {0}</value></data>
+  <data name="MakeCommunicationsNameFormat" xml:space="preserve"><value>Для зв'язку: {0}</value></data>
+  <data name="PercentFormat" xml:space="preserve"><value>{0} %</value></data>
+  <data name="VolumeNameFormat" xml:space="preserve"><value>Гучність: {0}</value></data>
+  <data name="MuteNameFormat" xml:space="preserve"><value>Вимкнути звук: {0}</value></data>
+  <data name="UnmuteNameFormat" xml:space="preserve"><value>Увімкнути звук: {0}</value></data>
+  <data name="MuteTooltip" xml:space="preserve"><value>Вимкнути звук</value></data>
+  <data name="UnmuteTooltip" xml:space="preserve"><value>Увімкнути звук</value></data>
+  <data name="MoreNameFormat" xml:space="preserve"><value>Ще: {0}</value></data>
+  <data name="MoreTooltip" xml:space="preserve"><value>Ще</value></data>
+
+  <!-- Меню «⋯» -->
+  <data name="MenuOutput" xml:space="preserve"><value>Вивід (експериментально)</value></data>
+  <data name="MenuOutputDefault" xml:space="preserve"><value>Пристрій за замовчуванням</value></data>
+  <data name="MenuAssign" xml:space="preserve"><value>Призначити на дію</value></data>
+  <data name="MenuAppSlotFormat" xml:space="preserve"><value>Програма {0} — {1}</value></data>
+  <data name="MenuMicSlotFormat" xml:space="preserve"><value>Мікрофон {0} — {1}</value></data>
+  <data name="SlotNotSet" xml:space="preserve"><value>не вибрано</value></data>
+
+  <!-- Налаштування мікрофона -->
+  <data name="MicSettings" xml:space="preserve"><value>Налаштування мікрофона</value></data>
+  <data name="MicLoading" xml:space="preserve"><value>Завантаження…</value></data>
+  <data name="MicBoost" xml:space="preserve"><value>Підсилення</value></data>
+  <data name="MicBoostValueFormat" xml:space="preserve"><value>{0:+0.#;-0.#;0} дБ</value></data>
+  <data name="MicBoostUnavailable" xml:space="preserve"><value>Драйвер не дає підсилення</value></data>
+  <data name="MicListen" xml:space="preserve"><value>Прослуховувати цей пристрій</value></data>
+  <data name="MicListenThrough" xml:space="preserve"><value>Відтворювати через</value></data>
+  <data name="MicListenDefaultOutput" xml:space="preserve"><value>Пристрій виводу за замовчуванням</value></data>
+  <data name="MicWindowsSettings" xml:space="preserve"><value>Інші налаштування мікрофона у Windows</value></data>
+
+  <!-- Посилання унизу сторінки -->
+  <data name="LinkSoundSettings" xml:space="preserve"><value>Параметри звуку Windows</value></data>
+  <data name="LinkAppVolume" xml:space="preserve"><value>Мікшер гучності Windows</value></data>
+  <data name="LinkTaskbar" xml:space="preserve"><value>Як винести значок до годинника</value></data>
+</root>
