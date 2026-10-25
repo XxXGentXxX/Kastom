@@ -230,8 +230,13 @@ internal static class CatalogToolCli
             Launcher = launcher,
         };
 
+        // Завеликий каталог відкинув би кожен лаунчер — і разом з ним оновлення модулів і самого лаунчера.
+        var catalogBytes = JsonSerializer.SerializeToUtf8Bytes(catalog, KastomJson.Options);
+        if (catalogBytes.Length > CatalogVerifier.MaxCatalogSize)
+            throw new InvalidDataException($"каталог завеликий: {catalogBytes.Length} байтів, лаунчер приймає до {CatalogVerifier.MaxCatalogSize}. Зменште значки модулів.");
+
         Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-        File.WriteAllBytes(outPath, JsonSerializer.SerializeToUtf8Bytes(catalog, KastomJson.Options));
+        File.WriteAllBytes(outPath, catalogBytes);
         Console.WriteLine($"Каталог: {catalog.Modules.Count} модулів{(launcher is null ? "" : $", лаунчер {launcher.Version}")} → {outPath}");
         Console.WriteLine("Не забудьте підписати його: kastom-catalog sign.");
         return 0;
@@ -332,6 +337,9 @@ internal static class CatalogToolCli
         if (!File.Exists(catalogPath)) throw new IOException($"Каталог не знайдено: {catalogPath}");
 
         // Каталог з датою в майбутньому лаунчер прийняв би, а потім відкидав би всі правильні каталоги як старіші.
+        if (new FileInfo(catalogPath).Length > CatalogVerifier.MaxCatalogSize)
+            throw new InvalidDataException($"каталог завеликий, лаунчер приймає до {CatalogVerifier.MaxCatalogSize} байтів.");
+
         var generatedAt = ReadCatalogFile(catalogPath).GeneratedAt;
         if (generatedAt > DateTimeOffset.UtcNow.AddMinutes(5))
             throw new InvalidDataException($"каталог датовано майбутнім ({generatedAt:u}); лаунчер після нього відкидатиме правильні каталоги як старіші. Перевірте системний годинник і перескладіть каталог.");

@@ -73,7 +73,7 @@ public sealed class ModuleInstaller(
         {
             var directory = paths.ModuleInstallDirectory(moduleId, version);
             var manifest = ReadManifest(directory);
-            return manifest is not null && CheckManifest(manifest, directory, moduleId, version, null) is null ? manifest : null;
+            return manifest is not null && CheckManifest(manifest, directory, moduleId, version, null, checkIcon: false) is null ? manifest : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InstallFailedException)
         {
@@ -315,7 +315,9 @@ public sealed class ModuleInstaller(
     }
 
     /// <summary>Повертає опис проблеми українською або null. expectedContract null — контракт не звіряти.</summary>
-    private static string? CheckManifest(ModuleManifest manifest, string directory, string expectedId, string expectedVersion, int? expectedContract)
+    // checkIcon: false для вже встановленого модуля — значок лише прикраса, і неправильний шлях до нього не має заважати
+    // запуску (файл значка ModuleIcons читає сам, не виходячи за теку модуля).
+    private static string? CheckManifest(ModuleManifest manifest, string directory, string expectedId, string expectedVersion, int? expectedContract, bool checkIcon = true)
     {
         if (!ModuleManifest.IsValidId(manifest.Id))
             return $"module.json: неправильний id '{manifest.Id}'.";
@@ -336,7 +338,7 @@ public sealed class ModuleInstaller(
             return $"У пакеті немає збірки '{assembly}', указаної в module.json.";
 
         // Небезпечний шлях значка — відмова, як і для інших шляхів; а от відсутній файл значка — не причина: модуль буде без значка.
-        if (manifest.Icon is not null && ModuleIcons.ValidatePath(manifest.Icon) is { } iconProblem)
+        if (checkIcon && manifest.Icon is not null && ModuleIcons.ValidatePath(manifest.Icon) is { } iconProblem)
             return $"module.json: {iconProblem}";
 
         return null;

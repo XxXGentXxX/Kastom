@@ -205,7 +205,9 @@ public partial class MainWindow : Window
         var desired = new List<NavItem>();
         foreach (var module in enabled)
         {
-            var existing = current.FirstOrDefault(i => i.ModuleId == module.Id && i.Title == module.Name && SameIcon(i.Icon, module.Icon));
+            // Значок у збіг не входить: інакше новий значок з каталогу підмінив би пункт, і відкрита сторінка модуля
+            // закрилася б (перехід на «Модулі»). Новий значок з'явиться, коли пункт перебудується з іншої причини.
+            var existing = current.FirstOrDefault(i => i.ModuleId == module.Id && i.Title == module.Name);
             desired.Add(existing ?? new NavItem { Title = module.Name, ModuleId = module.Id, Icon = module.Icon });
         }
 
@@ -222,9 +224,6 @@ public partial class MainWindow : Window
 
         if (selectedGone) NavigateTo(NavPage.Modules);
     }
-
-    private static bool SameIcon(byte[]? left, byte[]? right) =>
-        left is null ? right is null : right is not null && left.AsSpan().SequenceEqual(right);
 
     private void OnClosed(object? sender, EventArgs e)
     {

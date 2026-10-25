@@ -64,6 +64,9 @@ public sealed class ModuleIconView : ContentControl
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
+
+            // Значок показується не більше 32 DIP (64 px при 200 %): великий PNG не має розгортатися в пам'яті повністю.
+            image.DecodePixelWidth = 64;
             image.StreamSource = stream;
             image.EndInit();
             image.Freeze();
