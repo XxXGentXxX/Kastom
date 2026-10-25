@@ -99,6 +99,7 @@
   <data name="OsdAppOutputsReset" xml:space="preserve"><value>Вивід усіх програм скинуто</value></data>
   <data name="OsdAppRoutingFailed" xml:space="preserve"><value>Windows не дозволила змінити вивід програми</value></data>
   <data name="OsdDefaultSwitchFailed" xml:space="preserve"><value>Windows не дозволила змінити пристрій за замовчуванням</value></data>
+  <data name="OsdOpenAppFailed" xml:space="preserve"><value>Не вдалося відкрити програму</value></data>
   <data name="OsdCommandFailed" xml:space="preserve"><value>Не вдалося змінити звук</value></data>
 
   <!-- Значки в області сповіщень -->

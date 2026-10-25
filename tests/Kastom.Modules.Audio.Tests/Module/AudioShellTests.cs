@@ -1,3 +1,4 @@
+using System.IO;
 using Kastom.Modules.Audio.Model;
 using Kastom.Modules.Audio.Shell;
 
@@ -133,7 +134,10 @@ vidia broadcast.exe";
         shell.RevealApp(App());
 
         var call = Assert.Single(started);
-        Assert.Equal("explorer.exe", call.File);
+
+        // Повний шлях до Провідника: інакше CreateProcess спершу шукав би explorer.exe у поточній теці.
+        Assert.Equal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), call.File);
+        Assert.True(Path.IsPathFullyQualified(call.File));
         Assert.Equal($"/select,\"{AppPath}\"", call.Args);
         Assert.Equal($"/select,\"{AppPath}\"", AudioShell.RevealArguments(AppPath));
     }
@@ -176,6 +180,30 @@ vidia broadcast.exe";
         Assert.Equal("Не вдалося змінити звук", error.Message);
         Assert.Same(failure, error.Exception);
         Assert.Equal("Не вдалося змінити звук", Assert.Single(osd.Texts));
+    }
+    [Theory]
+    [InlineData(@"c:\program files\google\chromepplication\chrome.exe", true)]
+    [InlineData("system", false)]
+    [InlineData("pid:1234", false)]
+    [InlineData(@"relativepp.exe", false)]
+    [InlineData(@"c:\docs
+otes.txt", false)]
+    [InlineData("https://example.com/app.exe", false)]
+    public void OnlyFullExePathsCanBeOpened(string key, bool isExe)
+    {
+        var app = new Model.AudioApp { Key = key, DeviceId = "d", Name = "x", Volume = 1, IsMuted = false };
+        Assert.Equal(isExe ? key : null, app.ExePath);
+    }
+
+    [Fact]
+    public void FailedLaunchIsShownOnScreen()
+    {
+        var osd = new FakeNotifications();
+        var shell = new AudioShell(new FakeLogger(), osd, _ => throw new InvalidOperationException("не запускається"), _ => false);
+
+        shell.OpenApp(App(pids: [10]));
+
+        Assert.Contains(Resources.Strings.OsdOpenAppFailed, osd.Texts);
     }
 }
 

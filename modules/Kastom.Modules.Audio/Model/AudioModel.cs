@@ -155,9 +155,9 @@ public sealed record AudioApp
     /// У «Системних звуків» і програм, чий шлях не вдалося взнати, — null.
     /// </summary>
     public string? ExePath =>
-        IsSystemSounds || Key == "system" || Key.StartsWith("pid:", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(Key)
-            ? null
-            : Key;
+        !IsSystemSounds && System.IO.Path.IsPathFullyQualified(Key) && Key.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? Key
+            : null;
 }
 
 /// <summary>Налаштування мікрофона, які бекенд читає лише на запит (вони звертаються до драйвера).</summary>

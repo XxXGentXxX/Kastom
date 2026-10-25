@@ -48,7 +48,16 @@ public sealed class AudioModule : IKastomModule
             backend = new CoreAudioBackend(context.Log);
         }
 
-        var host = new MixerHost(backend, new AudioOptions(context.Settings), new AudioShell(context.Log, context.Notifications));
+        // З фальшивим звуком програми вигадані: «Відкрити програму» не має виводити чи запускати справжні.
+        var shell = _fake
+            ? new AudioShell(
+                context.Log,
+                context.Notifications,
+                launch: target => context.Log.Info($"Звук (фальшивий): відкрити {target}"),
+                showWindow: _ => true,
+                startProcess: (file, arguments) => context.Log.Info($"Звук (фальшивий): {file} {arguments}"))
+            : new AudioShell(context.Log, context.Notifications);
+        var host = new MixerHost(backend, new AudioOptions(context.Settings), shell);
         _host = host;
 
         new AudioActions(host, context.Notifications, new ForegroundApp(), ShowMixer).Register(context.Actions);

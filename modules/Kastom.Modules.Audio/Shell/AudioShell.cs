@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using Kastom.Modules.Audio.CoreAudio;
 using Kastom.Modules.Audio.Model;
+using Kastom.Modules.Audio.Resources;
 using Kastom.Sdk.Services;
 
 namespace Kastom.Modules.Audio.Shell;
@@ -41,7 +44,7 @@ internal sealed class AudioShell(
         bool shown;
         try
         {
-            shown = (showWindow ?? ShowMainWindow)(app.ProcessIds);
+            shown = (showWindow ?? (ids => ShowMainWindow(ids, path)))(app.ProcessIds);
         }
         catch (Exception ex)
         {
@@ -49,8 +52,17 @@ internal sealed class AudioShell(
             shown = false;
         }
 
-        // Вікна немає (програма в треї): той самий exe ще раз — програми з одним екземпляром покажуть своє вікно.
-        if (!shown) Open(path);
+        // Вікна немає ні в кого (програма в треї): той самий exe ще раз — програми з одним екземпляром покажуть своє вікно.
+        if (shown) return;
+        try
+        {
+            if (launch is not null) launch(path);
+            else Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path) ?? "" })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Fail($"Не вдалося запустити {path}: {ex.Message}");
+        }
     }
 
     public void RevealApp(AudioApp app)
@@ -59,13 +71,22 @@ internal sealed class AudioShell(
 
         try
         {
-            if (startProcess is not null) startProcess("explorer.exe", RevealArguments(path));
-            else Process.Start(new ProcessStartInfo("explorer.exe", RevealArguments(path)) { UseShellExecute = false })?.Dispose();
+            if (startProcess is not null) startProcess(ExplorerPath, RevealArguments(path));
+            else Process.Start(new ProcessStartInfo(ExplorerPath, RevealArguments(path)) { UseShellExecute = false })?.Dispose();
         }
         catch (Exception ex)
         {
-            log.Warn($"Не вдалося показати {path} у Провіднику: {ex.Message}");
+            Fail($"Не вдалося показати {path} у Провіднику: {ex.Message}");
         }
+    }
+
+    /// <summary>Повний шлях: без нього CreateProcess спершу шукав би explorer.exe у теці лаунчера й поточній теці.</summary>
+    internal static string ExplorerPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+
+    private void Fail(string details)
+    {
+        log.Warn(details);
+        osd.ShowOsd(Strings.OsdOpenAppFailed);
     }
 
     /// <summary>Аргументи Провідника, що виділяють файл у його теці.</summary>
@@ -77,10 +98,30 @@ internal sealed class AudioShell(
         osd.ShowOsd(userMessage);
     }
 
-    // Головне вікно першого з процесів, що його має. Згорнуте відновлюється; сховане (програма в треї) вікна не має.
-    private static bool ShowMainWindow(IReadOnlyList<int> processIds)
+    // Головне вікно першого з процесів, що його має. Звук браузера (Chrome, Edge) і WebView2 іде з дочірнього процесу без
+    // вікна, тож після процесів сеансу дивимося на інші процеси того самого exe — серед них є той, що з вікном.
+    // Згорнуте вікно відновлюється; сховане (програма в треї) вікна не має.
+    private static bool ShowMainWindow(IReadOnlyList<int> processIds, string path)
     {
-        foreach (var id in processIds)
+        var siblings = new List<int>();
+        try
+        {
+            foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(path)))
+            {
+                using (process)
+                {
+                    if (!processIds.Contains(process.Id)
+                        && string.Equals(ProcessInfo.GetPath(process.Id), path, StringComparison.OrdinalIgnoreCase))
+                        siblings.Add(process.Id);
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Перелік процесів недоступний — обійдемося процесами сеансу.
+        }
+
+        foreach (var id in processIds.Concat(siblings))
         {
             try
             {

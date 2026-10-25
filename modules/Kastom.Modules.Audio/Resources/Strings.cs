@@ -98,6 +98,7 @@ internal static class Strings
     public static string OsdAppRoutingFailed => Get(nameof(OsdAppRoutingFailed));
     public static string OsdDefaultSwitchFailed => Get(nameof(OsdDefaultSwitchFailed));
     public static string OsdCommandFailed => Get(nameof(OsdCommandFailed));
+    public static string OsdOpenAppFailed => Get(nameof(OsdOpenAppFailed));
 
     public static string TrayVolumeTooltipFormat => Get(nameof(TrayVolumeTooltipFormat));
     public static string TrayMutedTooltipFormat => Get(nameof(TrayMutedTooltipFormat));
