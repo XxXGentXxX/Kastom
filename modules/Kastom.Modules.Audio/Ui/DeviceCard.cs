@@ -23,7 +23,7 @@ internal sealed class DeviceCard : Border
     private readonly StackPanel _buttons = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _appsPanel = new() { Margin = new Thickness(28, 6, 0, 0) };
     private readonly Dictionary<string, AppRow> _apps = new();
-    private readonly MoreButton? _more;
+    private readonly MoreButton _more = new();
     private readonly SubtleButton? _expand;
     private readonly TextBlock? _chevron;
     private readonly MicSettingsPanel? _micSettings;
@@ -87,10 +87,10 @@ internal sealed class DeviceCard : Border
         _makeCommunications.Click += (_, _) => _ = _ctx.Run(
             () => _ctx.Backend.SetDefaultDeviceAsync(Id, _ctx.Options.RolesFor(true)), Strings.OsdDefaultSwitchFailed);
 
+        _more.Click += (_, _) => RowMenus.Open(_more, BuildMenu());
+
         if (_isMic)
         {
-            _more = new MoreButton();
-            _more.Click += (_, _) => RowMenus.Open(_more, RowMenus.BuildMicMenu(_ctx, _device));
             Row = new VolumeRow(ctx, isMic: true, trailing: _more) { Margin = new Thickness(0, 4, 0, 0) };
 
             _chevron = MixerUi.Glyph(Glyphs.ChevronDown, 12);
@@ -113,7 +113,7 @@ internal sealed class DeviceCard : Border
         }
         else
         {
-            Row = new VolumeRow(ctx, isMic: false) { Margin = new Thickness(0, 4, 0, 0) };
+            Row = new VolumeRow(ctx, isMic: false, trailing: _more) { Margin = new Thickness(0, 4, 0, 0) };
             stack.Children.Add(Row);
             stack.Children.Add(_appsPanel);
         }
@@ -146,7 +146,7 @@ internal sealed class DeviceCard : Border
 
     internal string NameText => _name.Text;
 
-    internal MoreButton? More => _more;
+    internal MoreButton More => _more;
 
     internal SubtleButton? ExpandButton => _expand;
 
@@ -157,6 +157,8 @@ internal sealed class DeviceCard : Border
     internal bool AreButtonsShown => _buttons.Visibility == Visibility.Visible;
 
     internal ContextMenu? BuildMicMenu() => _isMic ? RowMenus.BuildMicMenu(_ctx, _device) : null;
+
+    internal ContextMenu BuildMenu() => _isMic ? RowMenus.BuildMicMenu(_ctx, _device) : RowMenus.BuildOutputMenu(_ctx, _device);
 
     public void Update(AudioDevice device)
     {
@@ -184,10 +186,11 @@ internal sealed class DeviceCard : Border
         Row.Meter.Key = PeakKeys.Device(device.Id);
         Row.Update(name, device.Volume, device.IsMuted);
 
+        _more.Update(name);
+        _more.Visibility = Show(!compact);
+
         if (_isMic)
         {
-            _more!.Update(name);
-            _more.Visibility = Show(!compact);
             _expand!.Visibility = Show(!compact);
             _micSettings!.Visibility = Show(_expanded && !compact);
             _micSettings.Update(device);

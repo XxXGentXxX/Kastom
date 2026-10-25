@@ -44,6 +44,32 @@ public sealed record AudioSnapshot(IReadOnlyList<AudioDevice> Devices, bool IsAv
 
     public AudioDevice? FindDevice(string deviceId) => Devices.FirstOrDefault(d => d.Id == deviceId);
 
+    /// <summary>
+    /// Програма, чию назву несе пристрій у дужках («Speakers (NVIDIA Broadcast)» → «NVIDIA Broadcast»): збіг без урахування
+    /// регістру з <see cref="AudioApp.Name"/> або <see cref="AudioApp.ProcessName"/>. Береться лише програма з відомим
+    /// шляхом до exe; null — такої немає.
+    /// </summary>
+    public AudioApp? FindAppOfDevice(AudioDevice device)
+    {
+        if (BracketedName(device.Name) is not { } name) return null;
+
+        return AllApps.FirstOrDefault(a =>
+            a.ExePath is not null
+            && (string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(a.ProcessName, name, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>Текст між першою "(" і останньою ")" назви пристрою, обрізаний; null, якщо дужок немає чи вони порожні.</summary>
+    internal static string? BracketedName(string deviceName)
+    {
+        var open = deviceName.IndexOf('(');
+        var close = deviceName.LastIndexOf(')');
+        if (open < 0 || close <= open) return null;
+
+        var inner = deviceName[(open + 1)..close].Trim();
+        return inner.Length == 0 ? null : inner;
+    }
+
     /// <summary>Програма на будь-якому пристрої виводу.</summary>
     public IEnumerable<AudioApp> AllApps => Outputs.SelectMany(d => d.Apps);
 }
@@ -123,6 +149,15 @@ public sealed record AudioApp
     /// або бекенд цього не вміє.
     /// </summary>
     public string? RoutedDeviceId { get; init; }
+
+    /// <summary>
+    /// Повний шлях до exe, якщо він відомий: ключ програми — це шлях (а не "system" чи "pid:…").
+    /// У «Системних звуків» і програм, чий шлях не вдалося взнати, — null.
+    /// </summary>
+    public string? ExePath =>
+        IsSystemSounds || Key == "system" || Key.StartsWith("pid:", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(Key)
+            ? null
+            : Key;
 }
 
 /// <summary>Налаштування мікрофона, які бекенд читає лише на запит (вони звертаються до драйвера).</summary>

@@ -44,6 +44,21 @@ internal static class MixerStrings
     public static string MenuAppSlotFormat => Get(nameof(MenuAppSlotFormat));
     public static string MenuMicSlotFormat => Get(nameof(MenuMicSlotFormat));
     public static string SlotNotSet => Get(nameof(SlotNotSet));
+    public static string MenuOpenApp => Get(nameof(MenuOpenApp));
+    public static string MenuRevealApp => Get(nameof(MenuRevealApp));
+    public static string MenuOpenAppFormat => Get(nameof(MenuOpenAppFormat));
+    public static string MenuSoundSettings => Get(nameof(MenuSoundSettings));
+
+    public static string TileSound => Get(nameof(TileSound));
+    public static string TileMics => Get(nameof(TileMics));
+    public static string TileOn => Get(nameof(TileOn));
+    public static string TileOff => Get(nameof(TileOff));
+    public static string TileSoundMuteName => Get(nameof(TileSoundMuteName));
+    public static string TileSoundUnmuteName => Get(nameof(TileSoundUnmuteName));
+    public static string TileMicsMuteName => Get(nameof(TileMicsMuteName));
+    public static string TileMicsUnmuteName => Get(nameof(TileMicsUnmuteName));
+    public static string TileSoundToggleName => Get(nameof(TileSoundToggleName));
+    public static string TileMicsToggleName => Get(nameof(TileMicsToggleName));
 
     public static string MicSettings => Get(nameof(MicSettings));
     public static string MicLoading => Get(nameof(MicLoading));

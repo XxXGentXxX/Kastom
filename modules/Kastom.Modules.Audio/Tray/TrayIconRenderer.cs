@@ -6,7 +6,7 @@ using System.Windows.Media.Imaging;
 
 namespace Kastom.Modules.Audio.Tray;
 
-/// <summary>Що намальовано на значку в області сповіщень.</summary>
+/// <summary>Який гліф звуку намальовано на значку в області сповіщень.</summary>
 public enum TrayGlyph
 {
     /// <summary>Немає пристрою виводу чи звук вимкнено.</summary>
@@ -23,14 +23,9 @@ public enum TrayGlyph
 
     /// <summary>Від 66 %.</summary>
     Volume3,
-
-    Mic,
-
-    /// <summary>Мікрофон вимкнено: червоний з перекресленням.</summary>
-    MicOff,
 }
 
-/// <summary>Малює значки звуку й мікрофона гліфами Segoe Fluent Icons під колір панелі задач.</summary>
+/// <summary>Малює значок звуку гліфом Segoe Fluent Icons під колір панелі задач; за потреби — з позначкою вимкненого мікрофона.</summary>
 internal static class TrayIconRenderer
 {
     private const string IconFont = "Segoe Fluent Icons, Segoe MDL2 Assets";
@@ -38,20 +33,29 @@ internal static class TrayIconRenderer
     [DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr handle);
 
-    public static System.Drawing.Icon Render(TrayGlyph glyph, bool lightTaskbar, int sizePx)
+    public static System.Drawing.Icon Render(TrayGlyph glyph, bool micBadge, bool lightTaskbar, int sizePx)
     {
-        var brush = new SolidColorBrush(ColorOf(glyph, lightTaskbar));
+        var brush = new SolidColorBrush(lightTaskbar ? Colors.Black : Colors.White);
         brush.Freeze();
 
         var visual = new DrawingVisual();
         using (var context = visual.RenderOpen())
         {
-            DrawGlyph(context, CharOf(glyph), sizePx, brush);
-            if (glyph == TrayGlyph.MicOff)
+            if (micBadge)
             {
-                var pen = new Pen(brush, sizePx / 10.0) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-                pen.Freeze();
-                context.DrawLine(pen, new Point(sizePx * 0.18, sizePx * 0.12), new Point(sizePx * 0.82, sizePx * 0.88));
+                // Навколо позначки гліф вирізано з відступом: на 16 px червоне коло не зливається з контурами динаміка.
+                var (centre, radius) = BadgeCircle(sizePx);
+                var halo = new EllipseGeometry(centre, radius + sizePx / 16.0, radius + sizePx / 16.0);
+                var clip = new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(new Rect(0, 0, sizePx, sizePx)), halo);
+                clip.Freeze();
+                context.PushClip(clip);
+                DrawGlyph(context, CharOf(glyph), sizePx, brush);
+                context.Pop();
+                DrawBadge(context, sizePx, lightTaskbar);
+            }
+            else
+            {
+                DrawGlyph(context, CharOf(glyph), sizePx, brush);
             }
         }
 
@@ -60,11 +64,25 @@ internal static class TrayIconRenderer
         return ToIcon(target, sizePx);
     }
 
-    private static Color ColorOf(TrayGlyph glyph, bool lightTaskbar)
+    // Коло позначки: діаметр — половина значка (не менше 8 px), притиснуте до правого нижнього кута.
+    private static (Point Centre, double Radius) BadgeCircle(int sizePx)
     {
-        if (glyph == TrayGlyph.MicOff)
-            return lightTaskbar ? Color.FromRgb(0xC4, 0x2B, 0x1C) : Color.FromRgb(0xFF, 0x6B, 0x6B);
-        return lightTaskbar ? Colors.Black : Colors.White;
+        var radius = Math.Max(4, Math.Round(sizePx * 0.25));
+        return (new Point(sizePx - radius, sizePx - radius), radius);
+    }
+
+    /// <summary>Червоне коло з білою рискою навскіс: на 16 px читається краще за крихітний перекреслений мікрофон.</summary>
+    private static void DrawBadge(DrawingContext context, int sizePx, bool lightTaskbar)
+    {
+        var (centre, radius) = BadgeCircle(sizePx);
+        var red = new SolidColorBrush(lightTaskbar ? Color.FromRgb(0xC4, 0x2B, 0x1C) : Color.FromRgb(0xFF, 0x6B, 0x6B));
+        red.Freeze();
+        context.DrawEllipse(red, null, centre, radius, radius);
+
+        var pen = new Pen(Brushes.White, Math.Max(1.5, radius / 3.5)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+        pen.Freeze();
+        var reach = radius * 0.55;
+        context.DrawLine(pen, new Point(centre.X - reach, centre.Y + reach), new Point(centre.X + reach, centre.Y - reach));
     }
 
     private static string CharOf(TrayGlyph glyph) => glyph switch
@@ -73,8 +91,7 @@ internal static class TrayIconRenderer
         TrayGlyph.Volume0 => "",
         TrayGlyph.Volume1 => "",
         TrayGlyph.Volume2 => "",
-        TrayGlyph.Volume3 => "",
-        _ => "",
+        _ => "",
     };
 
     /// <summary>Гліф по центру квадрата: розмір підганяється під справжні контури, а не під рамку шрифту.</summary>

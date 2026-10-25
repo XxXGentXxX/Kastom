@@ -8,7 +8,7 @@ namespace Kastom.Modules.Audio.Tests.Module;
 
 public sealed class AudioModuleTests
 {
-    /// <summary>Модуль на фальшивому бекенді, зі значками, вимкненими в налаштуваннях (справжніх NotifyIcon у тестах немає).</summary>
+    /// <summary>Модуль на фальшивому бекенді, зі значком, вимкненим в налаштуваннях (справжніх NotifyIcon у тестах немає).</summary>
     private static (AudioModule Module, TestModuleContext Context) Configured()
     {
         var context = new TestModuleContext();
@@ -25,7 +25,6 @@ public sealed class AudioModuleTests
         }
 
         context.SettingsRegistry.Set(SettingKeys.TrayIcon, false);
-        context.SettingsRegistry.Set(SettingKeys.MicTrayIcon, false);
         return (module, context);
     }
 
@@ -78,9 +77,9 @@ public sealed class AudioModuleTests
         Assert.True(backend.IsStarted);
         Assert.NotNull(backend.Current.DefaultOutput);
 
-        // Налаштування значків змінюються й тоді, коли значків ще немає; нових вікон це не створює.
+        // Налаштування значка змінюються й тоді, коли значка ще немає; нових вікон це не створює.
         context.SettingsRegistry.Set(SettingKeys.TrayIcon, false);
-        context.SettingsRegistry.Set(SettingKeys.MicTrayIcon, false);
+        context.SettingsRegistry.Set(SettingKeys.TrayMicBadge, false);
         context.SettingsRegistry.Set(SettingKeys.Osd, false);
 
         module.StopAsync(CancellationToken.None).GetAwaiter().GetResult();

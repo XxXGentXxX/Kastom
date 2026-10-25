@@ -48,7 +48,16 @@ public sealed class MixerFlyout : Window
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = _view,
         };
-        var frame = new Border { BorderThickness = new Thickness(1), Child = scroll };
+
+        // Плитки внизу, поза прокруткою: довгий список пристроїв і програм не ховає їх.
+        var body = new DockPanel { LastChildFill = true };
+        var tiles = _view.Tiles!;
+        tiles.Margin = new Thickness(12, 4, 12, 12);
+        DockPanel.SetDock(tiles, Dock.Bottom);
+        body.Children.Add(tiles);
+        body.Children.Add(scroll);
+
+        var frame = new Border { BorderThickness = new Thickness(1), Child = body };
         frame.SetResourceReference(Border.BorderBrushProperty, ThemeKeys.CardStroke);
         Content = frame;
 
@@ -64,6 +73,9 @@ public sealed class MixerFlyout : Window
     }
 
     public MixerHost Host { get; }
+
+    /// <summary>Мікшер у панелі; для тестів.</summary>
+    internal MixerView View => _view;
 
     /// <summary>
     /// Куди поставити панель розміром <paramref name="sizePx"/> на моніторі з робочою областю

@@ -33,9 +33,9 @@
   <data name="VolumeStepTitle" xml:space="preserve"><value>Крок гучності для клавіш</value></data>
   <data name="GroupTray" xml:space="preserve"><value>Значки в області сповіщень</value></data>
   <data name="TrayIconTitle" xml:space="preserve"><value>Значок звуку</value></data>
-  <data name="TrayIconDescription" xml:space="preserve"><value>Лівий клік відкриває мікшер, правий — меню.</value></data>
-  <data name="MicTrayIconTitle" xml:space="preserve"><value>Значок мікрофона</value></data>
-  <data name="MicTrayIconDescription" xml:space="preserve"><value>Показує, чи вимкнено мікрофон за замовчуванням; лівий клік вимикає й вмикає його.</value></data>
+  <data name="TrayIconDescription" xml:space="preserve"><value>Лівий клік відкриває мікшер, правий — меню. Підказка показує гучність і стан мікрофона за замовчуванням.</value></data>
+  <data name="TrayMicBadgeTitle" xml:space="preserve"><value>Позначка вимкненого мікрофона на значку</value></data>
+  <data name="TrayMicBadgeDescription" xml:space="preserve"><value>Поки мікрофон за замовчуванням вимкнено, у правому нижньому куті значка звуку видно маленьке червоне коло з рискою.</value></data>
   <data name="PinTrayTitle" xml:space="preserve"><value>Як винести значки до годинника</value></data>
   <data name="PinTrayDescription" xml:space="preserve"><value>Програма не може зробити це сама: Windows дозволяє лише користувачеві. Кнопка відкриває параметри панелі задач — там у розділі «Інші значки на панелі задач» увімкніть Kastom.</value></data>
   <data name="GroupHints" xml:space="preserve"><value>Підказки</value></data>

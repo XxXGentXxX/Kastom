@@ -41,7 +41,7 @@ public sealed class AudioOptionsTests
         Assert.False(options.SeparateCommunications);
         Assert.True(options.ShowMeters);
         Assert.True(options.TrayIcon);
-        Assert.True(options.MicTrayIcon);
+        Assert.True(options.TrayMicBadge);
         Assert.True(options.Osd);
         Assert.True(options.PerAppOutput);
         Assert.Equal(2, options.VolumeStepPercent);
@@ -75,8 +75,22 @@ public sealed class AudioOptionsTests
         var (settings, options) = TestOptions.Create();
         var keys = new List<string>();
         options.Changed += (_, key) => keys.Add(key);
-        settings.Set(SettingKeys.MicTrayIcon, false);
-        Assert.Equal([SettingKeys.MicTrayIcon], keys);
+        settings.Set(SettingKeys.TrayMicBadge, false);
+        Assert.Equal([SettingKeys.TrayMicBadge], keys);
+    }
+
+    [Fact]
+    public void TrayMicBadgeReplacesTheMicTrayIconSetting()
+    {
+        var settings = new TestSettingsRegistry();
+        AudioSettings.Define(settings);
+
+        // Збережене значення старого ключа лаунчер просто ігнорує: такого налаштування вже немає.
+        Assert.DoesNotContain(settings.Definitions, d => d.Key == "mic-tray-icon");
+        var badge = Assert.IsType<ToggleSetting>(Assert.Single(settings.Definitions, d => d.Key == "tray-mic-badge"));
+        Assert.True(badge.Default);
+        Assert.Equal("Позначка вимкненого мікрофона на значку", badge.Title);
+        Assert.Equal(Strings.GroupTray, badge.Group);
     }
 }
 
@@ -123,6 +137,14 @@ public sealed partial class ModuleDefinitionTests
         Assert.Equal("audio", root.GetProperty("id").GetString());
         Assert.Equal(KastomSdk.ContractVersion, root.GetProperty("contractVersion").GetInt32());
         Assert.Equal("Kastom.Modules.Audio.dll", root.GetProperty("entryAssembly").GetString());
+        Assert.Equal("1.2.0", root.GetProperty("version").GetString());
+        Assert.Equal("0.1.2", root.GetProperty("minLauncherVersion").GetString());
+
+        // Значок модуля лежить поруч із маніфестом і потрапляє у вихідну теку збірки разом із ним.
+        var icon = root.GetProperty("icon").GetString();
+        Assert.Equal("icon.png", icon);
+        Assert.True(File.Exists(Path.Combine(ModuleFiles.Directory, icon!)));
+        Assert.True(File.Exists(Path.Combine(AppContext.BaseDirectory, icon!)), "icon.png не скопійовано у вихідну теку.");
 
         var entryType = typeof(Model.AudioSnapshot).Assembly.GetType(root.GetProperty("entryType").GetString()!);
         Assert.NotNull(entryType);

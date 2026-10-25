@@ -1,3 +1,4 @@
+using Kastom.Modules.Audio.Model;
 using Kastom.Modules.Audio.Shell;
 
 namespace Kastom.Modules.Audio.Tests.Module;
@@ -33,6 +34,121 @@ public sealed class AudioShellTests
                 "ms-settings:taskbar",
             },
             launched);
+    }
+
+    private const string AppPath = @"c:\program files
+vidia corporation
+vidia broadcast
+vidia broadcast.exe";
+
+    private static AudioApp App(string key = AppPath, bool system = false, params int[] pids) => new()
+    {
+        Key = key,
+        DeviceId = "out",
+        Name = "NVIDIA Broadcast",
+        Volume = 1,
+        IsMuted = false,
+        IsSystemSounds = system,
+        ProcessIds = pids,
+    };
+
+    [Fact]
+    public void OpenAppShowsTheExistingWindowAndStartsNothing()
+    {
+        var launched = new List<string>();
+        var asked = new List<IReadOnlyList<int>>();
+        var shell = new AudioShell(new FakeLogger(), new FakeNotifications(), launched.Add, ids =>
+        {
+            asked.Add(ids);
+            return true;
+        });
+
+        shell.OpenApp(App(pids: [10, 20]));
+
+        Assert.Equal([10, 20], Assert.Single(asked));
+        Assert.Empty(launched);
+    }
+
+    [Fact]
+    public void OpenAppStartsTheSameExeWhenThereIsNoWindow()
+    {
+        var launched = new List<string>();
+        var shell = new AudioShell(new FakeLogger(), new FakeNotifications(), launched.Add, _ => false);
+
+        shell.OpenApp(App(pids: [10]));
+
+        Assert.Equal([AppPath], launched);
+    }
+
+    [Fact]
+    public void OpenAppStartsTheExeWhenWindowLookupFailsAndLogsIt()
+    {
+        var launched = new List<string>();
+        var log = new FakeLogger();
+        var shell = new AudioShell(log, new FakeNotifications(), launched.Add, _ => throw new InvalidOperationException("нема доступу"));
+
+        shell.OpenApp(App(pids: [10]));
+
+        Assert.Equal([AppPath], launched);
+        Assert.Contains("нема доступу", Assert.Single(log.Warnings));
+    }
+
+    [Fact]
+    public void OpenAppStartFailureIsLoggedNotThrown()
+    {
+        var log = new FakeLogger();
+        var shell = new AudioShell(log, new FakeNotifications(), _ => throw new InvalidOperationException("не запускається"), _ => false);
+
+        shell.OpenApp(App());
+
+        Assert.Contains("не запускається", Assert.Single(log.Warnings));
+    }
+
+    [Theory]
+    [InlineData("pid:4242", false)]
+    [InlineData("system", false)]
+    [InlineData(AppPath, true)]
+    public void AppsWithoutPathAndSystemSoundsAreNeverOpenedOrRevealed(string key, bool system)
+    {
+        var launched = new List<string>();
+        var started = new List<(string File, string Args)>();
+        var windowLookups = 0;
+        var shell = new AudioShell(
+            new FakeLogger(), new FakeNotifications(), launched.Add, _ => { windowLookups++; return true; }, (file, args) => started.Add((file, args)));
+
+        shell.OpenApp(App(key, system));
+        shell.RevealApp(App(key, system));
+
+        Assert.Equal(0, windowLookups);
+        Assert.Empty(started);
+        Assert.Empty(launched);
+    }
+
+    [Fact]
+    public void RevealSelectsTheExeInExplorer()
+    {
+        var started = new List<(string File, string Args)>();
+        var shell = new AudioShell(new FakeLogger(), new FakeNotifications(), startProcess: (file, args) => started.Add((file, args)));
+
+        shell.RevealApp(App());
+
+        var call = Assert.Single(started);
+        Assert.Equal("explorer.exe", call.File);
+        Assert.Equal($"/select,\"{AppPath}\"", call.Args);
+        Assert.Equal($"/select,\"{AppPath}\"", AudioShell.RevealArguments(AppPath));
+    }
+
+    [Fact]
+    public void RevealFailureIsLoggedNotThrown()
+    {
+        var log = new FakeLogger();
+        var shell = new AudioShell(log, new FakeNotifications(), startProcess: (_, _) => throw new InvalidOperationException("немає explorer"));
+
+        shell.RevealApp(App());
+
+        var warning = Assert.Single(log.Warnings);
+        Assert.Contains("немає explorer", warning);
+        Assert.Contains(AppPath, warning);
     }
 
     [Fact]

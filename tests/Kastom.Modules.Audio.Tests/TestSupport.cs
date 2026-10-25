@@ -90,6 +90,24 @@ internal sealed class FakeShell : IAudioShell
 
     public void OpenTaskbarSettings() => Calls.Add(nameof(OpenTaskbarSettings));
 
+    /// <summary>Програми, які просили відкрити.</summary>
+    public List<AudioApp> OpenedApps { get; } = [];
+
+    /// <summary>Програми, які просили показати у Провіднику.</summary>
+    public List<AudioApp> RevealedApps { get; } = [];
+
+    public void OpenApp(AudioApp app)
+    {
+        Calls.Add(nameof(OpenApp));
+        OpenedApps.Add(app);
+    }
+
+    public void RevealApp(AudioApp app)
+    {
+        Calls.Add(nameof(RevealApp));
+        RevealedApps.Add(app);
+    }
+
     public void ReportError(string userMessage, Exception? exception) => Errors.Add((userMessage, exception));
 }
 

@@ -6,13 +6,15 @@ using Microsoft.Win32;
 namespace Kastom.Modules.Audio.Tray;
 
 /// <summary>
-/// Значки звуку (З11) і мікрофона (З12) в області сповіщень. Створюється й живе в потоці інтерфейсу.
+/// Єдиний значок звуку (З11) в області сповіщень; стан мікрофона (З12) — червона позначка на ньому й другий рядок
+/// підказки. Створюється й живе в потоці інтерфейсу.
 /// <para>
-/// Обидва NotifyIcon створюються один раз і лишаються тими самими на весь час життя модуля в процесі, завжди
-/// в порядку «звук, потім мікрофон»: WinForms бере для кожного нового NotifyIcon новий uID, а Windows пам'ятає
-/// «показувати біля годинника» саме за exe та uID. Перестворення скидало б закріплення й плодило б дублікати в
-/// Параметрах. Тому налаштування, поява мікрофона й зупинка модуля лише перемикають <c>Visible</c>. Звільнити
-/// NotifyIcon справді було б можна лише при вивантаженні модуля, а такої події в контракті немає.
+/// NotifyIcon створюється один раз і лишається тим самим на весь час життя модуля в процесі: WinForms бере для кожного
+/// нового NotifyIcon новий uID, а Windows пам'ятає «показувати біля годинника» саме за exe та uID. Це той самий значок
+/// звуку, що був першим (до 1.2.0 другим був значок мікрофона, його більше немає), тож uID не змінився і закріплення
+/// лишилося. Перестворення скидало б закріплення й плодило б дублікати в Параметрах. Тому налаштування й зупинка
+/// модуля лише перемикають <c>Visible</c>. Звільнити NotifyIcon справді було б можна лише при вивантаженні модуля,
+/// а такої події в контракті немає.
 /// </para>
 /// </summary>
 internal sealed class AudioTrayIcons
@@ -25,8 +27,7 @@ internal sealed class AudioTrayIcons
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private readonly EventHandler<AudioSnapshot> _onBackendChanged;
     private readonly UserPreferenceChangedEventHandler _onPreferenceChanged;
-    private readonly Entry _sound;
-    private readonly Entry _mic;
+    private readonly Entry _entry;
     private int _refreshQueued;
     private bool _active;
 
@@ -40,12 +41,10 @@ internal sealed class AudioTrayIcons
         _onBackendChanged = (_, _) => QueueRefresh();
         _onPreferenceChanged = (_, _) => QueueRefresh();
 
-        // Порядок створення визначає порядок uID: звук завжди перший.
-        _sound = CreateSoundEntry();
-        _mic = CreateMicEntry();
+        _entry = CreateEntry();
     }
 
-    /// <summary>Модуль запущено: стежити за звуком і темою та показати значки, які ввімкнено.</summary>
+    /// <summary>Модуль запущено: стежити за звуком і темою та показати значок, якщо його ввімкнено.</summary>
     public void Activate()
     {
         if (_active) return;
@@ -57,7 +56,7 @@ internal sealed class AudioTrayIcons
         ApplySettings();
     }
 
-    /// <summary>Модуль зупинено: відписатися й прибрати значки з області сповіщень (самі NotifyIcon лишаються).</summary>
+    /// <summary>Модуль зупинено: відписатися й прибрати значок з області сповіщень (сам NotifyIcon лишається).</summary>
     public void Deactivate()
     {
         if (!_active) return;
@@ -65,11 +64,10 @@ internal sealed class AudioTrayIcons
 
         _host.Backend.Changed -= _onBackendChanged;
         SystemEvents.UserPreferenceChanged -= _onPreferenceChanged;
-        _sound.Hide();
-        _mic.Hide();
+        _entry.Hide();
     }
 
-    /// <summary>Показати чи сховати значки за налаштуваннями й перемалювати ті, що змінилися.</summary>
+    /// <summary>Показати чи сховати значок за налаштуваннями й перемалювати, якщо вигляд змінився.</summary>
     public void ApplySettings()
     {
         if (!_active) return;
@@ -78,8 +76,10 @@ internal sealed class AudioTrayIcons
         var light = IsLightTaskbar();
         var size = Math.Max(System.Windows.Forms.SystemInformation.SmallIconSize.Width, 16);
 
-        _sound.Apply(TrayLogic.Sound(_host.Options.TrayIcon, snapshot.DefaultOutput), light, size);
-        _mic.Apply(TrayLogic.Mic(_host.Options.MicTrayIcon, snapshot.DefaultInput), light, size);
+        _entry.Apply(
+            TrayLogic.Icon(_host.Options.TrayIcon, _host.Options.TrayMicBadge, snapshot.DefaultOutput, snapshot.DefaultInput),
+            light,
+            size);
     }
 
     /// <summary>Світла тема панелі задач. Немає значення в реєстрі — темна, як у чистій Windows 11.</summary>
@@ -109,22 +109,15 @@ internal sealed class AudioTrayIcons
 
     private void Guarded(Action action) => TrayLogic.RunGuarded(_host.Shell, action);
 
-    private Entry CreateSoundEntry()
-    {
-        var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add(Strings.TrayMenuMixer, null, (_, _) => Guarded(_showMixer));
-        menu.Items.Add(Strings.TrayMenuSoundSettings, null, (_, _) => Guarded(_host.Shell.OpenSoundSettings));
-        menu.Items.Add(Strings.TrayMenuAppVolume, null, (_, _) => Guarded(_host.Shell.OpenAppVolumeSettings));
-        return new Entry(menu, () => Guarded(_toggleMixer));
-    }
-
-    private Entry CreateMicEntry()
+    private Entry CreateEntry()
     {
         var menu = new System.Windows.Forms.ContextMenuStrip();
         var toggle = new System.Windows.Forms.ToolStripMenuItem(Strings.TrayMenuMicMute);
         toggle.Click += (_, _) => ToggleMic();
-        menu.Items.Add(toggle);
         menu.Items.Add(Strings.TrayMenuMixer, null, (_, _) => Guarded(_showMixer));
+        menu.Items.Add(toggle);
+        menu.Items.Add(Strings.TrayMenuSoundSettings, null, (_, _) => Guarded(_host.Shell.OpenSoundSettings));
+        menu.Items.Add(Strings.TrayMenuAppVolume, null, (_, _) => Guarded(_host.Shell.OpenAppVolumeSettings));
         menu.Items.Add(Strings.TrayMenuMicSettings, null, (_, _) => Guarded(_host.Shell.OpenInputProperties));
         menu.Opening += (_, _) => Guarded(() =>
         {
@@ -132,7 +125,7 @@ internal sealed class AudioTrayIcons
             toggle.Enabled = mic is not null;
             toggle.Text = mic?.IsMuted == true ? Strings.TrayMenuMicUnmute : Strings.TrayMenuMicMute;
         });
-        return new Entry(menu, ToggleMic);
+        return new Entry(menu, () => Guarded(_toggleMixer));
     }
 
     private async void ToggleMic()
@@ -148,7 +141,7 @@ internal sealed class AudioTrayIcons
         }
     }
 
-    /// <summary>Один значок: NotifyIcon, меню й намальований Icon; перемальовує лише тоді, коли вигляд справді змінився.</summary>
+    /// <summary>Значок: NotifyIcon, меню й намальований Icon; перемальовує лише тоді, коли вигляд справді змінився.</summary>
     private sealed class Entry
     {
         private readonly System.Windows.Forms.NotifyIcon _notifyIcon;
@@ -174,10 +167,10 @@ internal sealed class AudioTrayIcons
                 return;
             }
 
-            var look = new TrayLook(state.Glyph, light, size);
+            var look = new TrayLook(state.Glyph, state.MicBadge, light, size);
             if (TrayLogic.NeedsRedraw(_look, look))
             {
-                var icon = TrayIconRenderer.Render(look.Glyph, look.Light, look.Size);
+                var icon = TrayIconRenderer.Render(look.Glyph, look.MicBadge, look.Light, look.Size);
                 _notifyIcon.Icon = icon;
                 _icon?.Dispose();
                 _icon = icon;
