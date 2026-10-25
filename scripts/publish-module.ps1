@@ -186,14 +186,15 @@ try {
         Write-Host "Пакет: $zip"
         Write-Host "Підписаний каталог (попередній перегляд): $previewDir"
         Write-Host "Щоб опублікувати, запустіть той самий скрипт з -Publish. Він зробить:"
-        Write-Host "  gh release create $tag `"$zip`" --repo $Repo --title `"$title`" --notes `"$notes`""
+        Write-Host "  gh release create $tag `"$zip`" --repo $Repo --title `"$title`" --notes `"$notes`" --latest=false"
         Write-Host "  потім перенесе каталог у `"$Catalog`" і виконає git add, git commit та git push."
         return
     }
 
     # ---- Публікація: спершу реліз, і лише потім каталог у репозиторії ----
 
-    Invoke-Step "gh release create" { gh release create $tag $zip --repo $Repo --title $title --notes $notes }
+    # --latest=false: «Latest» лишається за релізом лаунчера, бо друзі ставлять програму за посиланням releases/latest.
+    Invoke-Step "gh release create" { gh release create $tag $zip --repo $Repo --title $title --notes $notes --latest=false }
 
     $catalogDir = Split-Path -Parent $Catalog
     if (-not (Test-Path -LiteralPath $catalogDir)) { New-Item -ItemType Directory -Path $catalogDir | Out-Null }
