@@ -165,7 +165,7 @@ public sealed class ModulesQuickView : UserControl
             };
             settingsButton.Click += (_, _) => _owner._openMainWindow(_moduleId);
 
-            _switch = new ToggleButton { Style = UiTheme.SwitchStyle };
+            _switch = new SwitchToggle { Style = UiTheme.SwitchStyle };
             AutomationProperties.SetName(_switch, info.Name);
             _switch.Click += OnSwitchClick;
 

@@ -29,6 +29,9 @@ public sealed class NavItem
 
     /// <summary>Id модуля для пунктів «Увімкнені модулі».</summary>
     public string? ModuleId { get; init; }
+
+    /// <summary>Назва пункту для UI Automation: екранний диктор читає саме її, а не ім'я класу.</summary>
+    public override string ToString() => Title;
 }
 
 /// <summary>

@@ -251,7 +251,7 @@ public sealed class ModulePage : UserControl
             caption.VerticalAlignment = VerticalAlignment.Center;
             caption.Margin = new Thickness(16, 0, 10, 0);
 
-            var toggle = new ToggleButton { Style = UiTheme.SwitchStyle };
+            var toggle = new SwitchToggle { Style = UiTheme.SwitchStyle };
             AutomationProperties.SetName(toggle, $"{definition.Title}: {UiStrings.WidgetOnDesktop}");
             toggle.Click += (_, _) =>
             {

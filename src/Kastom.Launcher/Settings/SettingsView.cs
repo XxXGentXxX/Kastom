@@ -243,12 +243,12 @@ public sealed class SettingsView : UserControl
 
     private sealed class ToggleRow : SettingRow
     {
-        private readonly ToggleButton _toggle;
+        private readonly SwitchToggle _toggle;
 
         public ToggleRow(SettingsView owner, ToggleSetting definition)
             : base(owner, definition)
         {
-            _toggle = new ToggleButton { Style = UiTheme.SwitchStyle };
+            _toggle = new SwitchToggle { Style = UiTheme.SwitchStyle };
             SetAutomationName(_toggle);
             _toggle.IsChecked = Settings.GetBool(definition.Key);
             _toggle.Click += (_, _) =>

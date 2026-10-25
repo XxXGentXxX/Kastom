@@ -43,7 +43,7 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
         Dispatcher.InvokeAsync(() =>
         {
             if (_disposed) return;
-            try { WidgetBox.IsChecked = _services.Widgets.IsVisible(WidgetHost.LauncherWidgetKey); }
+            try { Quietly(() => WidgetBox.IsChecked = _services.Widgets.IsVisible(WidgetHost.LauncherWidgetKey)); }
             catch (Exception) { }
         });
     }
@@ -143,7 +143,19 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
 
     // ---------- Запуск ----------
 
-    private void OnAutostartClick(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Змінити перемикач без його обробника (відкат після помилки, синхронізація зі станом). Обробники висять на
+    /// Checked/Unchecked, а не на Click: так їх викликають і миша, і клавіатура, і UI Automation (екранний диктор).
+    /// </summary>
+    private void Quietly(Action change)
+    {
+        var was = _loading;
+        _loading = true;
+        try { change(); }
+        finally { _loading = was; }
+    }
+
+    private void OnAutostartChanged(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
         ClearMessage();
@@ -157,14 +169,14 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
         catch (Exception exception)
         {
             _services.Log.Error("Не вдалося змінити автозапуск", exception);
-            AutostartBox.IsChecked = !enabled;
+            Quietly(() => AutostartBox.IsChecked = !enabled);
             ShowMessage(string.Format(Strings.AutostartFailed, exception.Message), isError: true);
         }
     }
 
     // ---------- Вигляд ----------
 
-    private void OnThemeClick(object sender, RoutedEventArgs e)
+    private void OnThemeChanged(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
         ClearMessage();
@@ -186,7 +198,7 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
 
     // ---------- Оновлення ----------
 
-    private void OnUpdateModeClick(object sender, RoutedEventArgs e)
+    private void OnUpdateModeChanged(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
         ClearMessage();
@@ -280,7 +292,7 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
 
     // ---------- Віджет, логи, каталог ----------
 
-    private void OnWidgetClick(object sender, RoutedEventArgs e)
+    private void OnWidgetChanged(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
         ClearMessage();
@@ -293,12 +305,12 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
         catch (Exception exception)
         {
             _services.Log.Error("Не вдалося перемкнути віджет лаунчера", exception);
-            WidgetBox.IsChecked = !show;
+            Quietly(() => WidgetBox.IsChecked = !show);
             ShowMessage(exception.Message, isError: true);
         }
     }
 
-    private void OnDesktopLayerClick(object sender, RoutedEventArgs e)
+    private void OnDesktopLayerChanged(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
         ClearMessage();
@@ -310,7 +322,7 @@ public partial class LauncherSettingsPage : UserControl, IDisposable
         catch (Exception exception)
         {
             _services.Log.Error("Не вдалося перемкнути шар робочого столу для віджетів", exception);
-            DesktopLayerBox.IsChecked = _services.Widgets.OnDesktop;
+            Quietly(() => DesktopLayerBox.IsChecked = _services.Widgets.OnDesktop);
             ShowMessage(exception.Message, isError: true);
         }
     }

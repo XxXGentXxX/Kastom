@@ -23,23 +23,23 @@
 
             <!-- Запуск -->
             <TextBlock Text="{x:Static res:Strings.SettingsStartupHeader}" Style="{StaticResource SectionHeader}" />
-            <CheckBox x:Name="AutostartBox" Content="{x:Static res:Strings.SettingsAutostart}" Click="OnAutostartClick" />
+            <CheckBox x:Name="AutostartBox" Content="{x:Static res:Strings.SettingsAutostart}" Checked="OnAutostartChanged" Unchecked="OnAutostartChanged" />
 
             <!-- Вигляд -->
             <TextBlock Text="{x:Static res:Strings.SettingsAppearanceHeader}" Style="{StaticResource SectionHeader}" />
             <RadioButton x:Name="ThemeSystem" GroupName="Theme" Content="{x:Static res:Strings.SettingsThemeSystem}"
-                         Click="OnThemeClick" />
+                         Checked="OnThemeChanged" />
             <RadioButton x:Name="ThemeLight" GroupName="Theme" Content="{x:Static res:Strings.SettingsThemeLight}"
-                         Click="OnThemeClick" />
+                         Checked="OnThemeChanged" />
             <RadioButton x:Name="ThemeDark" GroupName="Theme" Content="{x:Static res:Strings.SettingsThemeDark}"
-                         Click="OnThemeClick" />
+                         Checked="OnThemeChanged" />
 
             <!-- Оновлення -->
             <TextBlock Text="{x:Static res:Strings.SettingsUpdatesHeader}" Style="{StaticResource SectionHeader}" />
             <RadioButton x:Name="ModeNotify" GroupName="UpdateMode" Content="{x:Static res:Strings.SettingsUpdateNotify}"
-                         Click="OnUpdateModeClick" />
+                         Checked="OnUpdateModeChanged" />
             <RadioButton x:Name="ModeAutomatic" GroupName="UpdateMode" Content="{x:Static res:Strings.SettingsUpdateAutomatic}"
-                         Click="OnUpdateModeClick" />
+                         Checked="OnUpdateModeChanged" />
             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                 <Button x:Name="CheckNowButton" Content="{x:Static res:Strings.SettingsCheckNow}"
                         Padding="16,8" Click="OnCheckNowClick" />
@@ -61,9 +61,9 @@
 
             <!-- Віджет -->
             <TextBlock Text="{x:Static res:Strings.SettingsWidgetHeader}" Style="{StaticResource SectionHeader}" />
-            <CheckBox x:Name="WidgetBox" Content="{x:Static res:Strings.SettingsWidget}" Click="OnWidgetClick" />
+            <CheckBox x:Name="WidgetBox" Content="{x:Static res:Strings.SettingsWidget}" Checked="OnWidgetChanged" Unchecked="OnWidgetChanged" />
             <CheckBox x:Name="DesktopLayerBox" Content="{x:Static res:Strings.SettingsWidgetsOnDesktop}"
-                      Margin="0,8,0,0" Click="OnDesktopLayerClick" />
+                      Margin="0,8,0,0" Checked="OnDesktopLayerChanged" Unchecked="OnDesktopLayerChanged" />
             <TextBlock Text="{x:Static res:Strings.SettingsWidgetsOnDesktopNote}" Style="{StaticResource SecondaryText}"
                        Margin="0,6,0,0" />
 
