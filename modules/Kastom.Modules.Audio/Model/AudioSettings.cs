@@ -8,6 +8,7 @@ public static class SettingKeys
 {
     public const string SeparateCommunications = "separate-communications";
     public const string ShowMeters = "show-meters";
+    public const string Compact = "mixer-compact";
     public const string VolumeStep = "volume-step";
     public const string TrayIcon = "tray-icon";
     public const string MicTrayIcon = "mic-tray-icon";
@@ -74,6 +75,14 @@ public static class AudioSettings
             Default = false,
         });
 
+        settings.Define(new ToggleSetting
+        {
+            Key = SettingKeys.Compact,
+            Title = Strings.CompactTitle,
+            Description = Strings.CompactDescription,
+            Group = Strings.GroupMixer,
+            Default = false,
+        });
         settings.Define(new ToggleSetting
         {
             Key = SettingKeys.ShowMeters,
@@ -186,6 +195,11 @@ public sealed class AudioOptions
     public bool SeparateCommunications => _settings.GetBool(SettingKeys.SeparateCommunications);
 
     public bool ShowMeters => _settings.GetBool(SettingKeys.ShowMeters);
+
+    /// <summary>Згорнутий мікшер: лише назва й головний повзунок кожного пристрою.</summary>
+    public bool Compact => _settings.GetBool(SettingKeys.Compact);
+
+    public void SetCompact(bool compact) => _settings.Set(SettingKeys.Compact, compact);
 
     public int VolumeStepPercent => (int)Math.Round(_settings.GetDouble(SettingKeys.VolumeStep));
 

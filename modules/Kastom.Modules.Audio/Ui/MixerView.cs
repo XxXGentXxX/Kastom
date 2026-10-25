@@ -28,6 +28,9 @@ public sealed class MixerView : UserControl
 {
     private readonly MixerContext _ctx;
     private readonly StackPanel _root = new();
+    private readonly SubtleButton _compactButton = new();
+    private readonly TextBlock _compactGlyph = MixerUi.Glyph(Glyphs.ChevronUp, 14);
+    private readonly TextBlock _compactLabel = MixerUi.Text("", 13);
     private readonly TextBlock _unavailable = MixerUi.Text(MixerStrings.AudioUnavailable, 14, secondary: true);
 
     private readonly StackPanel _outputSection = new();
@@ -71,6 +74,16 @@ public sealed class MixerView : UserControl
         _unavailable.Visibility = Visibility.Collapsed;
         _unavailable.TextWrapping = TextWrapping.Wrap;
         _root.Children.Add(_unavailable);
+
+        _compactButton.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { _compactGlyph, _compactLabel },
+        };
+        _compactButton.Click += (_, _) => ToggleCompact();
+        UpdateCompactButton();
 
         if (mode == MixerMode.Widget)
         {
@@ -231,7 +244,7 @@ public sealed class MixerView : UserControl
 
     private void OnOptionChanged(object? sender, string key)
     {
-        if (key is not (SettingKeys.ShowMeters or SettingKeys.SeparateCommunications or SettingKeys.PerAppOutput)) return;
+        if (key is not (SettingKeys.ShowMeters or SettingKeys.SeparateCommunications or SettingKeys.PerAppOutput or SettingKeys.Compact)) return;
 
         // Подія може прийти з будь-якого потоку; змінюємо інтерфейс лише в його потоці.
         if (Dispatcher.CheckAccess()) HandleOptionChanged(key);
@@ -264,6 +277,7 @@ public sealed class MixerView : UserControl
 
         _outputSection.Visibility = Show(snapshot.IsAvailable);
         _inputSection.Visibility = Show(snapshot.IsAvailable);
+        UpdateCompactButton();
 
         // Пристрій за замовчуванням іде першим, решта — як у знімку (OrderBy стабільний).
         var outputs = snapshot.Outputs.OrderBy(d => d.IsDefault ? 0 : 1).ToList();
@@ -321,6 +335,7 @@ public sealed class MixerView : UserControl
         if (Mode == MixerMode.Page) MaxWidth = 760;
 
         if (Mode == MixerMode.Flyout) _root.Children.Add(CreateFlyoutHeader());
+        else _root.Children.Add(CreatePageHeader());
 
         _noOutputs.Visibility = Visibility.Collapsed;
         _noInputs.Visibility = Visibility.Collapsed;
@@ -355,14 +370,61 @@ public sealed class MixerView : UserControl
         System.Windows.Automation.AutomationProperties.SetName(settings, MixerStrings.LinkSoundSettings);
         settings.Click += (_, _) => CallShell(Host.Shell.OpenSoundSettings);
 
+        _compactButton.Width = 32;
+        _compactButton.Height = 32;
+        _compactButton.Margin = new Thickness(0, 0, 4, 0);
+
         var header = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(settings, 1);
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(_compactButton, 1);
+        Grid.SetColumn(settings, 2);
         header.Children.Add(title);
+        header.Children.Add(_compactButton);
         header.Children.Add(settings);
         return header;
     }
+
+    // На сторінці модуля заголовок малює лаунчер, тож тут лише кнопка згортання праворуч.
+    private UIElement CreatePageHeader()
+    {
+        _compactButton.Padding = new Thickness(8, 4, 8, 4);
+        _compactButton.HorizontalAlignment = HorizontalAlignment.Right;
+        _compactButton.Margin = new Thickness(0, 0, 0, 4);
+        _compactLabel.Margin = new Thickness(6, 0, 0, 0);
+        return _compactButton;
+    }
+
+    /// <summary>Кнопка показує, що станеться після кліку: «Згорнути все» або «Розгорнути все».</summary>
+    private void UpdateCompactButton()
+    {
+        var compact = Host.Options.Compact;
+        var text = compact ? MixerStrings.ExpandAll : MixerStrings.CollapseAll;
+        _compactGlyph.Text = compact ? Glyphs.ChevronDown : Glyphs.ChevronUp;
+        _compactLabel.Text = text;
+        _compactLabel.Visibility = Show(Mode == MixerMode.Page);
+        _compactButton.ToolTip = text;
+        System.Windows.Automation.AutomationProperties.SetName(_compactButton, text);
+    }
+
+    private void ToggleCompact()
+    {
+        try
+        {
+            Host.Options.SetCompact(!Host.Options.Compact);
+        }
+        catch (Exception ex)
+        {
+            _ctx.Report(Strings.OsdCommandFailed, ex);
+        }
+
+        // Налаштування саме повідомить про зміну, але кнопка має відповісти одразу, навіть без підписки.
+        UpdateCompactButton();
+        ScheduleCurrent();
+    }
+
+    internal Button CompactButton => _compactButton;
 
     private UIElement CreateLinks()
     {

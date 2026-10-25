@@ -26,6 +26,8 @@
   <data name="SeparateCommunicationsTitle" xml:space="preserve"><value>Пристрій «для зв'язку» перемикати окремо</value></data>
   <data name="SeparateCommunicationsDescription" xml:space="preserve"><value>Без цього вибраний пристрій стає і звичайним, і «для зв'язку» — тим, що беруть Discord, Teams і Zoom.</value></data>
   <data name="GroupMixer" xml:space="preserve"><value>Мікшер</value></data>
+  <data name="CompactTitle" xml:space="preserve"><value>Згорнутий мікшер</value></data>
+  <data name="CompactDescription" xml:space="preserve"><value>Лише назва й головний повзунок кожного пристрою виводу й мікрофона, без програм, кнопок і налаштувань мікрофона — щоб список не був кілометровим. Перемикається й кнопкою в самому мікшері.</value></data>
   <data name="ShowMetersTitle" xml:space="preserve"><value>Індикатори рівня</value></data>
   <data name="ShowMetersDescription" xml:space="preserve"><value>Смужки рівня біля програм і пристроїв, поки мікшер відкритий. Щоб показати рівень мікрофона за замовчуванням, мікшер на цей час слухає його, тож Windows покаже, що Kastom використовує мікрофон.</value></data>
   <data name="VolumeStepTitle" xml:space="preserve"><value>Крок гучності для клавіш</value></data>

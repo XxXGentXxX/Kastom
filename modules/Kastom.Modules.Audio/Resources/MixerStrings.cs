@@ -18,6 +18,8 @@ internal static class MixerStrings
     public static string NoInputs => Get(nameof(NoInputs));
     public static string AudioUnavailable => Get(nameof(AudioUnavailable));
     public static string FlyoutTitle => Get(nameof(FlyoutTitle));
+    public static string CollapseAll => Get(nameof(CollapseAll));
+    public static string ExpandAll => Get(nameof(ExpandAll));
 
     public static string BadgeDefault => Get(nameof(BadgeDefault));
     public static string BadgeCommunications => Get(nameof(BadgeCommunications));

@@ -26,6 +26,8 @@ internal static class Strings
     public static string SeparateCommunicationsTitle => Get(nameof(SeparateCommunicationsTitle));
     public static string SeparateCommunicationsDescription => Get(nameof(SeparateCommunicationsDescription));
     public static string GroupMixer => Get(nameof(GroupMixer));
+    public static string CompactTitle => Get(nameof(CompactTitle));
+    public static string CompactDescription => Get(nameof(CompactDescription));
     public static string ShowMetersTitle => Get(nameof(ShowMetersTitle));
     public static string ShowMetersDescription => Get(nameof(ShowMetersDescription));
     public static string VolumeStepTitle => Get(nameof(VolumeStepTitle));

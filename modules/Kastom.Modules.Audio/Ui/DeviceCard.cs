@@ -152,6 +152,10 @@ internal sealed class DeviceCard : Border
 
     internal MicSettingsPanel? MicSettings => _micSettings;
 
+    internal bool AreAppsShown => _appsPanel.Visibility == Visibility.Visible;
+
+    internal bool AreButtonsShown => _buttons.Visibility == Visibility.Visible;
+
     internal ContextMenu? BuildMicMenu() => _isMic ? RowMenus.BuildMicMenu(_ctx, _device) : null;
 
     public void Update(AudioDevice device)
@@ -163,12 +167,15 @@ internal sealed class DeviceCard : Border
         _name.Text = name;
         _name.ToolTip = name;
 
+        // Згорнутий мікшер: лише назва (з позначкою «Основний») і головний повзунок.
+        var compact = _ctx.Options.Compact;
         var separate = _ctx.Options.SeparateCommunications;
         _defaultBadge.Visibility = Show(device.IsDefault);
         _communicationsBadge.Visibility = Show(separate && device.IsDefaultCommunications);
         _makeDefault.Visibility = Show(!device.IsDefault);
         _makeCommunications.Visibility = Show(separate && !device.IsDefaultCommunications);
-        _buttons.Visibility = Show(!device.IsDefault || (separate && !device.IsDefaultCommunications));
+        _buttons.Visibility = Show(!compact && (!device.IsDefault || (separate && !device.IsDefaultCommunications)));
+        _appsPanel.Visibility = Show(!compact);
         AutomationProperties.SetName(_makeDefault, MixerStrings.Format(MixerStrings.MakeDefaultNameFormat, name));
         _makeDefault.ToolTip = MixerStrings.Format(MixerStrings.MakeDefaultTooltipFormat, name);
         AutomationProperties.SetName(_makeCommunications, MixerStrings.Format(MixerStrings.MakeCommunicationsNameFormat, name));
@@ -180,7 +187,10 @@ internal sealed class DeviceCard : Border
         if (_isMic)
         {
             _more!.Update(name);
-            _micSettings!.Update(device);
+            _more.Visibility = Show(!compact);
+            _expand!.Visibility = Show(!compact);
+            _micSettings!.Visibility = Show(_expanded && !compact);
+            _micSettings.Update(device);
         }
         else
         {

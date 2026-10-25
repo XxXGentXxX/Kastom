@@ -153,8 +153,16 @@ internal static class MicTopology
         }
     }
 
-    internal static bool IsBluetoothPath(string? filterPath) =>
-        filterPath is not null && filterPath.StartsWith(@"\\?\BTH", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Шлях фільтра Windows віддає з номером з'єднувача попереду — "{2}.\\?\bthhfenum#…" (перевірено на ПК Івана
+    /// 2026-10-25), тож шукаємо "\\?\" і дивимось, чи далі йде BTH.
+    /// </summary>
+    internal static bool IsBluetoothPath(string? filterPath)
+    {
+        if (filterPath is null) return false;
+        var start = filterPath.IndexOf(@"\\?\", StringComparison.Ordinal);
+        return start >= 0 && filterPath.AsSpan(start + 4).StartsWith("BTH", StringComparison.OrdinalIgnoreCase);
+    }
 
     internal static bool IsBoostName(string? name) =>
         !string.IsNullOrWhiteSpace(name) && BoostNames.Any(b => name.Contains(b, StringComparison.OrdinalIgnoreCase));

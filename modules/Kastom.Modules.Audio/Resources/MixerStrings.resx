@@ -20,6 +20,8 @@
   <data name="NoInputs" xml:space="preserve"><value>Немає мікрофонів</value></data>
   <data name="AudioUnavailable" xml:space="preserve"><value>Звукова служба Windows недоступна</value></data>
   <data name="FlyoutTitle" xml:space="preserve"><value>Звук</value></data>
+  <data name="CollapseAll" xml:space="preserve"><value>Згорнути все</value></data>
+  <data name="ExpandAll" xml:space="preserve"><value>Розгорнути все</value></data>
 
   <!-- Картки пристроїв -->
   <data name="BadgeDefault" xml:space="preserve"><value>Основний</value></data>
