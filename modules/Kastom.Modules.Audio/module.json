@@ -1,0 +1,11 @@
+{
+  "id": "audio",
+  "name": "Звук",
+  "description": "Мікшер: гучність кожної програми, пристрої виводу й мікрофони, індикатори рівня, значки в області сповіщень і швидкі дії для гарячих клавіш.",
+  "version": "1.0.0",
+  "contractVersion": 1,
+  "entryAssembly": "Kastom.Modules.Audio.dll",
+  "entryType": "Kastom.Modules.Audio.AudioModule",
+  "minLauncherVersion": "0.1.2",
+  "author": "Kastom"
+}

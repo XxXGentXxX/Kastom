@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- Загальне -->
+  <data name="ModuleTitle" xml:space="preserve"><value>Звук</value></data>
+  <data name="SystemSounds" xml:space="preserve"><value>Системні звуки</value></data>
+  <data name="UnknownApp" xml:space="preserve"><value>Програма без назви</value></data>
+  <data name="UnknownDevice" xml:space="preserve"><value>Пристрій без назви</value></data>
+  <data name="WidgetTitle" xml:space="preserve"><value>Звук</value></data>
+
+  <!-- Налаштування -->
+  <data name="OpenMixerTitle" xml:space="preserve"><value>Відкрити мікшер</value></data>
+  <data name="GroupDevices" xml:space="preserve"><value>Пристрої</value></data>
+  <data name="SeparateCommunicationsTitle" xml:space="preserve"><value>Пристрій «для зв'язку» перемикати окремо</value></data>
+  <data name="SeparateCommunicationsDescription" xml:space="preserve"><value>Без цього вибраний пристрій стає і звичайним, і «для зв'язку» — тим, що беруть Discord, Teams і Zoom.</value></data>
+  <data name="GroupMixer" xml:space="preserve"><value>Мікшер</value></data>
+  <data name="ShowMetersTitle" xml:space="preserve"><value>Індикатори рівня</value></data>
+  <data name="ShowMetersDescription" xml:space="preserve"><value>Смужки рівня біля програм і пристроїв, поки мікшер відкритий. Щоб показати рівень мікрофона за замовчуванням, мікшер на цей час слухає його, тож Windows покаже, що Kastom використовує мікрофон.</value></data>
+  <data name="VolumeStepTitle" xml:space="preserve"><value>Крок гучності для клавіш</value></data>
+  <data name="GroupTray" xml:space="preserve"><value>Значки в області сповіщень</value></data>
+  <data name="TrayIconTitle" xml:space="preserve"><value>Значок звуку</value></data>
+  <data name="TrayIconDescription" xml:space="preserve"><value>Лівий клік відкриває мікшер, правий — меню.</value></data>
+  <data name="MicTrayIconTitle" xml:space="preserve"><value>Значок мікрофона</value></data>
+  <data name="MicTrayIconDescription" xml:space="preserve"><value>Показує, чи вимкнено мікрофон за замовчуванням; лівий клік вимикає й вмикає його.</value></data>
+  <data name="PinTrayTitle" xml:space="preserve"><value>Як винести значки до годинника</value></data>
+  <data name="PinTrayDescription" xml:space="preserve"><value>Програма не може зробити це сама: Windows дозволяє лише користувачеві. Кнопка відкриває параметри панелі задач — там у розділі «Інші значки на панелі задач» увімкніть Kastom.</value></data>
+  <data name="GroupHints" xml:space="preserve"><value>Підказки</value></data>
+  <data name="OsdTitle" xml:space="preserve"><value>Підказка на екрані після дії з клавіатури</value></data>
+  <data name="GroupExperimental" xml:space="preserve"><value>Експериментально</value></data>
+  <data name="PerAppOutputTitle" xml:space="preserve"><value>Вивід програми на окремий пристрій</value></data>
+  <data name="PerAppOutputDescription" xml:space="preserve"><value>Недокументований механізм Windows: після оновлення Windows може перестати працювати. Програми, які самі обирають пристрій у своїх налаштуваннях (Discord, частина ігор), цей вибір ігнорують.</value></data>
+  <data name="ResetAppOutputsTitle" xml:space="preserve"><value>Скинути вивід усіх програм</value></data>
+  <data name="GroupSlots" xml:space="preserve"><value>Дії для вибраних програм і мікрофонів</value></data>
+  <data name="AppSlotTitleFormat" xml:space="preserve"><value>Програма {0}</value></data>
+  <data name="AppSlotDescription" xml:space="preserve"><value>Назва процесу без «.exe», як у Диспетчері завдань: discord, spotify. Простіше призначити в мікшері: кнопка «⋯» біля програми.</value></data>
+  <data name="MicSlotTitleFormat" xml:space="preserve"><value>Мікрофон {0}</value></data>
+  <data name="MicSlotDescription" xml:space="preserve"><value>Назва мікрофона або її частина, як у мікшері. Простіше призначити в мікшері: кнопка «⋯» біля мікрофона.</value></data>
+
+  <!-- Дії -->
+  <data name="ActionToggleMic" xml:space="preserve"><value>Мікрофон: вимкнути чи увімкнути</value></data>
+  <data name="ActionToggleAllMics" xml:space="preserve"><value>Усі мікрофони: вимкнути чи увімкнути</value></data>
+  <data name="ActionNextMic" xml:space="preserve"><value>Наступний мікрофон</value></data>
+  <data name="ActionMicSlotFormat" xml:space="preserve"><value>Мікрофон {0}: вимкнути чи увімкнути</value></data>
+  <data name="ActionToggleOutput" xml:space="preserve"><value>Звук пристрою виводу: вимкнути чи увімкнути</value></data>
+  <data name="ActionNextOutput" xml:space="preserve"><value>Наступний пристрій виводу</value></data>
+  <data name="ActionPrevOutput" xml:space="preserve"><value>Попередній пристрій виводу</value></data>
+  <data name="ActionVolumeUp" xml:space="preserve"><value>Гучність: вище</value></data>
+  <data name="ActionVolumeDown" xml:space="preserve"><value>Гучність: нижче</value></data>
+  <data name="ActionToggleActiveApp" xml:space="preserve"><value>Активна програма: вимкнути чи увімкнути звук</value></data>
+  <data name="ActionActiveAppVolumeUp" xml:space="preserve"><value>Активна програма: гучніше</value></data>
+  <data name="ActionActiveAppVolumeDown" xml:space="preserve"><value>Активна програма: тихіше</value></data>
+  <data name="ActionAppSlotToggleFormat" xml:space="preserve"><value>Програма {0}: вимкнути чи увімкнути звук</value></data>
+  <data name="ActionAppSlotUpFormat" xml:space="preserve"><value>Програма {0}: гучніше</value></data>
+  <data name="ActionAppSlotDownFormat" xml:space="preserve"><value>Програма {0}: тихіше</value></data>
+  <data name="ActionOpenMixer" xml:space="preserve"><value>Відкрити мікшер</value></data>
+  <data name="ActionResetAppOutputs" xml:space="preserve"><value>Скинути вивід усіх програм</value></data>
+  <data name="ActionOpenTaskbarSettings" xml:space="preserve"><value>Параметри значків на панелі задач</value></data>
+  <data name="ActionActiveAppDescription" xml:space="preserve"><value>Програма, чиє вікно зараз на передньому плані.</value></data>
+  <data name="ActionAppSlotDescriptionFormat" xml:space="preserve"><value>Яка це програма, вказується в налаштуваннях модуля («Програма {0}») або кнопкою «⋯» у мікшері.</value></data>
+  <data name="ActionMicSlotDescriptionFormat" xml:space="preserve"><value>Який це мікрофон, вказується в налаштуваннях модуля («Мікрофон {0}») або кнопкою «⋯» у мікшері.</value></data>
+
+  <!-- Підказки на екрані (З15) -->
+  <data name="OsdMicMuted" xml:space="preserve"><value>Мікрофон вимкнено</value></data>
+  <data name="OsdMicUnmuted" xml:space="preserve"><value>Мікрофон увімкнено</value></data>
+  <data name="OsdAllMicsMuted" xml:space="preserve"><value>Усі мікрофони вимкнено</value></data>
+  <data name="OsdAllMicsUnmuted" xml:space="preserve"><value>Усі мікрофони увімкнено</value></data>
+  <data name="OsdNamedMutedFormat" xml:space="preserve"><value>{0}: вимкнено</value></data>
+  <data name="OsdNamedUnmutedFormat" xml:space="preserve"><value>{0}: увімкнено</value></data>
+  <data name="OsdMicSwitchedFormat" xml:space="preserve"><value>Мікрофон: {0}</value></data>
+  <data name="OsdOutputSwitchedFormat" xml:space="preserve"><value>Вивід: {0}</value></data>
+  <data name="OsdVolumeFormat" xml:space="preserve"><value>Гучність {0} %</value></data>
+  <data name="OsdOutputMuted" xml:space="preserve"><value>Звук вимкнено</value></data>
+  <data name="OsdOutputUnmuted" xml:space="preserve"><value>Звук увімкнено</value></data>
+  <data name="OsdAppMutedFormat" xml:space="preserve"><value>{0}: звук вимкнено</value></data>
+  <data name="OsdAppUnmutedFormat" xml:space="preserve"><value>{0}: звук увімкнено</value></data>
+  <data name="OsdAppVolumeFormat" xml:space="preserve"><value>{0}: гучність {1} %</value></data>
+  <data name="OsdNoActiveApp" xml:space="preserve"><value>Активна програма не відтворює звук</value></data>
+  <data name="OsdAppSlotEmptyFormat" xml:space="preserve"><value>Програму {0} не вибрано: вкажіть її в налаштуваннях модуля «Звук»</value></data>
+  <data name="OsdAppNotPlayingFormat" xml:space="preserve"><value>{0} зараз не відтворює звук</value></data>
+  <data name="OsdMicSlotEmptyFormat" xml:space="preserve"><value>Мікрофон {0} не вибрано: вкажіть його в налаштуваннях модуля «Звук»</value></data>
+  <data name="OsdMicNotFoundFormat" xml:space="preserve"><value>Мікрофон «{0}» не знайдено</value></data>
+  <data name="OsdNoOutputs" xml:space="preserve"><value>Немає пристроїв виводу</value></data>
+  <data name="OsdNoMics" xml:space="preserve"><value>Немає мікрофонів</value></data>
+  <data name="OsdAudioUnavailable" xml:space="preserve"><value>Звукова служба Windows недоступна</value></data>
+  <data name="OsdAppOutputsReset" xml:space="preserve"><value>Вивід усіх програм скинуто</value></data>
+  <data name="OsdAppRoutingFailed" xml:space="preserve"><value>Windows не дозволила змінити вивід програми</value></data>
+  <data name="OsdDefaultSwitchFailed" xml:space="preserve"><value>Windows не дозволила змінити пристрій за замовчуванням</value></data>
+  <data name="OsdCommandFailed" xml:space="preserve"><value>Не вдалося змінити звук</value></data>
+
+  <!-- Значки в області сповіщень -->
+  <data name="TrayVolumeTooltipFormat" xml:space="preserve"><value>{0}: {1} %</value></data>
+  <data name="TrayMutedTooltipFormat" xml:space="preserve"><value>{0}: звук вимкнено</value></data>
+  <data name="TrayNoDevice" xml:space="preserve"><value>Немає пристроїв виводу</value></data>
+  <data name="TrayMicOnTooltipFormat" xml:space="preserve"><value>Мікрофон увімкнено: {0}</value></data>
+  <data name="TrayMicOffTooltipFormat" xml:space="preserve"><value>Мікрофон вимкнено: {0}</value></data>
+  <data name="TrayMenuMixer" xml:space="preserve"><value>Мікшер</value></data>
+  <data name="TrayMenuSoundSettings" xml:space="preserve"><value>Параметри звуку Windows</value></data>
+  <data name="TrayMenuAppVolume" xml:space="preserve"><value>Мікшер гучності Windows</value></data>
+  <data name="TrayMenuMicMute" xml:space="preserve"><value>Вимкнути мікрофон</value></data>
+  <data name="TrayMenuMicUnmute" xml:space="preserve"><value>Увімкнути мікрофон</value></data>
+  <data name="TrayMenuMicSettings" xml:space="preserve"><value>Параметри мікрофона Windows</value></data>
+</root>

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms лише заради NotifyIcon (значки звуку й мікрофона в області сповіщень). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Kastom.Modules.Audio</RootNamespace>
+    <!-- Плагін: збірка готує deps.json для завантаження в окремий AssemblyLoadContext. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <!-- Виклики WinRT-фабрики (вивід окремої програми) ідуть через таблицю методів напряму. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Тексти в *.resx без суфікса мови — українські. -->
+    <NeutralLanguage>uk-UA</NeutralLanguage>
+    <!-- DPI задає лаунчер (app.manifest), WinForms лише для значків у треї. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Kastom.Sdk не копіюється в модуль: модуль мусить бачити ту саму збірку, що й лаунчер. -->
+    <ProjectReference Include="..\..\src\Kastom.Sdk\Kastom.Sdk.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kastom.Modules.Audio.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="module.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

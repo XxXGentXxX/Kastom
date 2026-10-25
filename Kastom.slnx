@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/modules/">
+    <Project Path="modules/Kastom.Modules.Audio/Kastom.Modules.Audio.csproj" />
     <Project Path="modules/Kastom.Modules.Demo/Kastom.Modules.Demo.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -12,6 +13,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Kastom.Core.Tests/Kastom.Core.Tests.csproj" />
+    <Project Path="tests/Kastom.Modules.Audio.Tests/Kastom.Modules.Audio.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Kastom.CatalogTool/Kastom.CatalogTool.csproj" />
