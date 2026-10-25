@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-25T12:09:14.1562539+00:00",
+  "modules": [
+    {
+      "id": "demo",
+      "name": "\u0414\u0435\u043C\u043E-\u043C\u043E\u0434\u0443\u043B\u044C",
+      "description": "\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u043A\u0430 \u043A\u043E\u043D\u0442\u0440\u0430\u043A\u0442\u0443 \u043C\u043E\u0434\u0443\u043B\u0456\u0432: \u043D\u0430\u043B\u0430\u0448\u0442\u0443\u0432\u0430\u043D\u043D\u044F, \u0434\u0456\u044F \u0437 \u043A\u043B\u0430\u0432\u0456\u0448\u0435\u044E, \u0432\u0456\u0434\u0436\u0435\u0442.",
+      "version": "1.0.0",
+      "contractVersion": 1,
+      "minLauncherVersion": "0.1.0",
+      "runMode": "inProcess",
+      "url": "https://github.com/XxXGentXxX/Kastom/releases/download/demo-v1.0.0/demo-1.0.0.zip",
+      "sha256": "ce4bf9b4667f008d98040b52e15eb9a2888ecb6e685f3a4c350f4915ea527749",
+      "size": 15965,
+      "changelog": null
+    }
+  ],
+  "launcher": null
+}
