@@ -72,12 +72,11 @@ public sealed class CoreAudioPureTests
     [Fact]
     public void ExitedProcessIsNotRunning()
     {
+        // Відкритий дескриптор не дає Windows віддати цей номер процесу іншому, поки триває перевірка.
         using var process = Process.Start(new ProcessStartInfo("cmd.exe", "/c exit 0") { CreateNoWindow = true, UseShellExecute = false })!;
         process.WaitForExit();
-        var processId = process.Id;
-        process.Dispose();
         Assert.True(ProcessInfo.IsRunning(Environment.ProcessId));
-        Assert.False(ProcessInfo.IsRunning(processId));
+        Assert.False(ProcessInfo.IsRunning(process.Id));
     }
 
     [Fact]

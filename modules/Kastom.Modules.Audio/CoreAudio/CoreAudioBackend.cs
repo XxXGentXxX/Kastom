@@ -42,6 +42,7 @@ public sealed class CoreAudioBackend : IAudioBackend
     private bool _publishScheduled;
     private bool _devicesRefreshScheduled;
     private bool _recoveryScheduled;
+    private bool _refreshingDevices;
     private int _recoveryAttempt;
     private long _sessionSequence;
     private Timer? _meterTimer;
@@ -74,7 +75,10 @@ public sealed class CoreAudioBackend : IAudioBackend
         return thread.InvokeAsync(() =>
         {
             _wanted = true;
-            if (!_alive && !_recoveryScheduled) TryCreate();
+
+            // Старий таймер відновлення, якщо він є, побачить _alive і нічого не зробить.
+            _recoveryAttempt = 0;
+            if (!_alive) TryCreate();
         });
     }
 
@@ -106,6 +110,7 @@ public sealed class CoreAudioBackend : IAudioBackend
             thread.InvokeAsync(() =>
             {
                 _wanted = false;
+                _recoveryScheduled = false;
                 TearDown();
             }).Wait(TimeSpan.FromSeconds(3));
         }
@@ -437,6 +442,8 @@ public sealed class CoreAudioBackend : IAudioBackend
         }
         catch (Exception ex) when (Com.IsDeviceGone(ex))
         {
+            // Під час самого переліку новий перелік не плануємо: інакше стала помилка крутила б його без кінця.
+            if (_refreshingDevices) return;
             _log.Info($"Звук ({what}): пристрій зник, перелічую знову.");
             ScheduleDevicesRefresh();
         }
@@ -484,10 +491,17 @@ public sealed class CoreAudioBackend : IAudioBackend
                     var device = collection.Item(i);
                     var id = device.GetId();
                     seen.Add(id);
-                    if (_devices.ContainsKey(id))
+                    if (_devices.TryGetValue(id, out var existing))
                     {
-                        Com.Release(device);
-                        continue;
+                        if (IsHealthy(existing))
+                        {
+                            Com.Release(device);
+                            continue;
+                        }
+
+                        // Пристрій зник і з'явився між двома переліками (перезапуск драйвера): старі об'єкти мертві.
+                        DisposeDevice(existing);
+                        _devices.Remove(id);
                     }
 
                     if (CreateDevice(device, id, flow) is { } entry) _devices[id] = entry;
@@ -507,6 +521,8 @@ public sealed class CoreAudioBackend : IAudioBackend
 
         _order = seen.Where(_devices.ContainsKey).ToList();
     }
+
+    private static bool IsHealthy(DeviceEntry entry) => entry.Volume is not null && entry.Volume.GetMute(out _) >= 0;
 
     private DeviceEntry? CreateDevice(IMMDevice device, string id, EDataFlow flow)
     {
@@ -640,6 +656,19 @@ public sealed class CoreAudioBackend : IAudioBackend
     // ---- Сеанси ----
 
     private void AddSession(DeviceEntry device, IAudioSessionControl control)
+    {
+        try
+        {
+            AddSessionCore(device, control);
+        }
+        catch (Exception)
+        {
+            if (!device.Sessions.Values.Any(s => ReferenceEquals(s.Control, control))) Com.Release(control);
+            throw;
+        }
+    }
+
+    private void AddSessionCore(DeviceEntry device, IAudioSessionControl control)
     {
         if (control is not IAudioSessionControl2 session
             || session.GetState(out var state) < 0
@@ -823,13 +852,21 @@ public sealed class CoreAudioBackend : IAudioBackend
         _devicesRefreshScheduled = Schedule(() =>
         {
             _devicesRefreshScheduled = false;
-            Guarded("пристрої", () =>
+            _refreshingDevices = true;
+            try
             {
-                RefreshDevices();
-                RefreshDefaults();
-                ReopenCaptureMeter();
-                MarkDirty();
-            });
+                Guarded("пристрої", () =>
+                {
+                    RefreshDevices();
+                    RefreshDefaults();
+                    ReopenCaptureMeter();
+                    MarkDirty();
+                });
+            }
+            finally
+            {
+                _refreshingDevices = false;
+            }
         }, DevicesRefreshDelayMs);
     }
 
@@ -998,8 +1035,10 @@ public sealed class CoreAudioBackend : IAudioBackend
     /// </summary>
     private static bool IsBluetooth(DeviceEntry device)
     {
+        // Одразу після під'єднання гарнітури топологія буває ще недоступна: тоді не відкриваємо (безпечніше)
+        // і не запам'ятовуємо — наступного разу спитаємо знову.
         device.IsBluetooth ??= MicTopology.IsBluetooth(device.Device);
-        return device.IsBluetooth.Value;
+        return device.IsBluetooth ?? true;
     }
 
     private void SamplePeaks()

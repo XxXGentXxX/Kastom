@@ -126,23 +126,26 @@ internal static class MicTopology
 
     /// <summary>
     /// Пристрій під'єднано через Bluetooth: фільтр драйвера, до якого веде з'єднувач пристрою, має шлях
-    /// \\?\BTHENUM#…, \\?\BTHHFENUM#… чи \\?\BTHLEDEVICE#…. Не вдалося з'ясувати — вважаємо, що ні.
+    /// \\?\BTHENUM#…, \\?\BTHHFENUM#… чи \\?\BTHLEDEVICE#…. Null — з'ясувати не вдалося.
     /// </summary>
-    public static bool IsBluetooth(IMMDevice device)
+    public static bool? IsBluetooth(IMMDevice device)
     {
         var toRelease = new List<object>();
         try
         {
+            // Топології немає зовсім (деякі віртуальні пристрої) — це точно не Bluetooth: його драйвер завжди її має.
             var topology = Com.TryActivate<IDeviceTopology>(device, ComConstants.IidDeviceTopology);
             if (topology is null) return false;
             toRelease.Add(topology);
-            if (topology.GetConnector(0, out var connector) < 0 || connector is null) return false;
+
+            // Решта невдач буває й тимчасовою (гарнітуру щойно під'єднали): відповіді немає, вирішить той, хто питав.
+            if (topology.GetConnector(0, out var connector) < 0 || connector is null) return null;
             toRelease.Add(connector);
-            return connector.GetDeviceIdConnectedTo(out var filter) >= 0 && IsBluetoothPath(filter);
+            return connector.GetDeviceIdConnectedTo(out var filter) >= 0 ? IsBluetoothPath(filter) : null;
         }
         catch (COMException)
         {
-            return false;
+            return null;
         }
         finally
         {
