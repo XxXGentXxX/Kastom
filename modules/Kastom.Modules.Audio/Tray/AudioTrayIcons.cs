@@ -7,12 +7,16 @@ namespace Kastom.Modules.Audio.Tray;
 
 /// <summary>
 /// Значки звуку (З11) і мікрофона (З12) в області сповіщень. Створюється й живе в потоці інтерфейсу.
-/// Значок не існує, поки його вимкнено в налаштуваннях (а мікрофона — поки немає мікрофона за замовчуванням).
+/// <para>
+/// Обидва NotifyIcon створюються один раз і лишаються тими самими на весь час життя модуля в процесі, завжди
+/// в порядку «звук, потім мікрофон»: WinForms бере для кожного нового NotifyIcon новий uID, а Windows пам'ятає
+/// «показувати біля годинника» саме за exe та uID. Перестворення скидало б закріплення й плодило б дублікати в
+/// Параметрах. Тому налаштування, поява мікрофона й зупинка модуля лише перемикають <c>Visible</c>. Звільнити
+/// NotifyIcon справді було б можна лише при вивантаженні модуля, а такої події в контракті немає.
+/// </para>
 /// </summary>
-internal sealed class AudioTrayIcons : IDisposable
+internal sealed class AudioTrayIcons
 {
-    // Windows не приймає довшу підказку.
-    private const int MaxTooltipLength = 127;
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 
     private readonly MixerHost _host;
@@ -21,10 +25,10 @@ internal sealed class AudioTrayIcons : IDisposable
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private readonly EventHandler<AudioSnapshot> _onBackendChanged;
     private readonly UserPreferenceChangedEventHandler _onPreferenceChanged;
-    private Entry? _sound;
-    private Entry? _mic;
+    private readonly Entry _sound;
+    private readonly Entry _mic;
     private int _refreshQueued;
-    private bool _disposed;
+    private bool _active;
 
     /// <param name="toggleMixer">Лівий клік по значку звуку.</param>
     /// <param name="showMixer">Пункт «Мікшер» у меню.</param>
@@ -35,52 +39,47 @@ internal sealed class AudioTrayIcons : IDisposable
         _showMixer = showMixer;
         _onBackendChanged = (_, _) => QueueRefresh();
         _onPreferenceChanged = (_, _) => QueueRefresh();
-        host.Backend.Changed += _onBackendChanged;
-        // Статична подія: без відписки в Dispose вона тримала б значки в пам'яті до кінця процесу.
+
+        // Порядок створення визначає порядок uID: звук завжди перший.
+        _sound = CreateSoundEntry();
+        _mic = CreateMicEntry();
+    }
+
+    /// <summary>Модуль запущено: стежити за звуком і темою та показати значки, які ввімкнено.</summary>
+    public void Activate()
+    {
+        if (_active) return;
+        _active = true;
+
+        _host.Backend.Changed += _onBackendChanged;
+        // Статична подія: без відписки в Deactivate вона тримала б значки в пам'яті до кінця процесу.
         SystemEvents.UserPreferenceChanged += _onPreferenceChanged;
+        ApplySettings();
+    }
+
+    /// <summary>Модуль зупинено: відписатися й прибрати значки з області сповіщень (самі NotifyIcon лишаються).</summary>
+    public void Deactivate()
+    {
+        if (!_active) return;
+        _active = false;
+
+        _host.Backend.Changed -= _onBackendChanged;
+        SystemEvents.UserPreferenceChanged -= _onPreferenceChanged;
+        _sound.Hide();
+        _mic.Hide();
     }
 
     /// <summary>Показати чи сховати значки за налаштуваннями й перемалювати ті, що змінилися.</summary>
     public void ApplySettings()
     {
-        if (_disposed) return;
+        if (!_active) return;
 
         var snapshot = _host.Backend.Current;
         var light = IsLightTaskbar();
         var size = Math.Max(System.Windows.Forms.SystemInformation.SmallIconSize.Width, 16);
 
-        if (_host.Options.TrayIcon)
-        {
-            _sound ??= CreateSoundEntry();
-            var (glyph, text) = DescribeSound(snapshot.DefaultOutput);
-            _sound.Update(glyph, text, light, size);
-        }
-        else
-        {
-            _sound = Remove(_sound);
-        }
-
-        if (_host.Options.MicTrayIcon && snapshot.DefaultInput is { } mic)
-        {
-            _mic ??= CreateMicEntry();
-            var glyph = mic.IsMuted ? TrayGlyph.MicOff : TrayGlyph.Mic;
-            var text = Strings.Format(mic.IsMuted ? Strings.TrayMicOffTooltipFormat : Strings.TrayMicOnTooltipFormat, mic.Name);
-            _mic.Update(glyph, text, light, size);
-        }
-        else
-        {
-            _mic = Remove(_mic);
-        }
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _host.Backend.Changed -= _onBackendChanged;
-        SystemEvents.UserPreferenceChanged -= _onPreferenceChanged;
-        _sound = Remove(_sound);
-        _mic = Remove(_mic);
+        _sound.Apply(TrayLogic.Sound(_host.Options.TrayIcon, snapshot.DefaultOutput), light, size);
+        _mic.Apply(TrayLogic.Mic(_host.Options.MicTrayIcon, snapshot.DefaultInput), light, size);
     }
 
     /// <summary>Світла тема панелі задач. Немає значення в реєстрі — темна, як у чистій Windows 11.</summary>
@@ -97,23 +96,10 @@ internal sealed class AudioTrayIcons : IDisposable
         }
     }
 
-    internal static (TrayGlyph Glyph, string Text) DescribeSound(AudioDevice? output)
-    {
-        if (output is null) return (TrayGlyph.Muted, Strings.TrayNoDevice);
-        if (output.IsMuted) return (TrayGlyph.Muted, Strings.Format(Strings.TrayMutedTooltipFormat, output.Name));
-
-        var percent = VolumeMath.ToPercent(output.Volume);
-        var glyph = percent < 1 ? TrayGlyph.Volume0
-            : percent < 33 ? TrayGlyph.Volume1
-            : percent < 66 ? TrayGlyph.Volume2
-            : TrayGlyph.Volume3;
-        return (glyph, Strings.Format(Strings.TrayVolumeTooltipFormat, output.Name, percent));
-    }
-
     // Події бекенда приходять з чужого потоку, а часті зміни (повзунок) зливаються в одне перемальовування.
     private void QueueRefresh()
     {
-        if (_disposed || Interlocked.Exchange(ref _refreshQueued, 1) == 1) return;
+        if (!_active || Interlocked.Exchange(ref _refreshQueued, 1) == 1) return;
         _dispatcher.BeginInvoke(() =>
         {
             Volatile.Write(ref _refreshQueued, 0);
@@ -121,13 +107,15 @@ internal sealed class AudioTrayIcons : IDisposable
         });
     }
 
+    private void Guarded(Action action) => TrayLogic.RunGuarded(_host.Shell, action);
+
     private Entry CreateSoundEntry()
     {
         var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add(Strings.TrayMenuMixer, null, (_, _) => _showMixer());
-        menu.Items.Add(Strings.TrayMenuSoundSettings, null, (_, _) => _host.Shell.OpenSoundSettings());
-        menu.Items.Add(Strings.TrayMenuAppVolume, null, (_, _) => _host.Shell.OpenAppVolumeSettings());
-        return new Entry(menu, _toggleMixer);
+        menu.Items.Add(Strings.TrayMenuMixer, null, (_, _) => Guarded(_showMixer));
+        menu.Items.Add(Strings.TrayMenuSoundSettings, null, (_, _) => Guarded(_host.Shell.OpenSoundSettings));
+        menu.Items.Add(Strings.TrayMenuAppVolume, null, (_, _) => Guarded(_host.Shell.OpenAppVolumeSettings));
+        return new Entry(menu, () => Guarded(_toggleMixer));
     }
 
     private Entry CreateMicEntry()
@@ -136,14 +124,14 @@ internal sealed class AudioTrayIcons : IDisposable
         var toggle = new System.Windows.Forms.ToolStripMenuItem(Strings.TrayMenuMicMute);
         toggle.Click += (_, _) => ToggleMic();
         menu.Items.Add(toggle);
-        menu.Items.Add(Strings.TrayMenuMixer, null, (_, _) => _showMixer());
-        menu.Items.Add(Strings.TrayMenuMicSettings, null, (_, _) => _host.Shell.OpenInputProperties());
-        menu.Opening += (_, _) =>
+        menu.Items.Add(Strings.TrayMenuMixer, null, (_, _) => Guarded(_showMixer));
+        menu.Items.Add(Strings.TrayMenuMicSettings, null, (_, _) => Guarded(_host.Shell.OpenInputProperties));
+        menu.Opening += (_, _) => Guarded(() =>
         {
             var mic = _host.Backend.Current.DefaultInput;
             toggle.Enabled = mic is not null;
             toggle.Text = mic?.IsMuted == true ? Strings.TrayMenuMicUnmute : Strings.TrayMenuMicMute;
-        };
+        });
         return new Entry(menu, ToggleMic);
     }
 
@@ -160,24 +148,17 @@ internal sealed class AudioTrayIcons : IDisposable
         }
     }
 
-    private static Entry? Remove(Entry? entry)
-    {
-        entry?.Dispose();
-        return null;
-    }
-
     /// <summary>Один значок: NotifyIcon, меню й намальований Icon; перемальовує лише тоді, коли вигляд справді змінився.</summary>
-    private sealed class Entry : IDisposable
+    private sealed class Entry
     {
         private readonly System.Windows.Forms.NotifyIcon _notifyIcon;
-        private readonly System.Windows.Forms.ContextMenuStrip _menu;
         private System.Drawing.Icon? _icon;
-        private (TrayGlyph Glyph, bool Light, int Size)? _look;
+        private TrayLook? _look;
         private string? _text;
 
         public Entry(System.Windows.Forms.ContextMenuStrip menu, Action leftClick)
         {
-            _menu = menu;
+            // Visible лишається false, поки Apply не покаже значок: тоді Windows ще нічого не бачила.
             _notifyIcon = new System.Windows.Forms.NotifyIcon { ContextMenuStrip = menu };
             _notifyIcon.MouseClick += (_, e) =>
             {
@@ -185,35 +166,37 @@ internal sealed class AudioTrayIcons : IDisposable
             };
         }
 
-        public void Update(TrayGlyph glyph, string text, bool light, int size)
+        public void Apply(TrayIconState state, bool light, int size)
         {
-            var look = (glyph, light, size);
-            if (_look != look)
+            if (!state.Visible)
             {
-                var icon = TrayIconRenderer.Render(glyph, light, size);
+                Hide();
+                return;
+            }
+
+            var look = new TrayLook(state.Glyph, light, size);
+            if (TrayLogic.NeedsRedraw(_look, look))
+            {
+                var icon = TrayIconRenderer.Render(look.Glyph, look.Light, look.Size);
                 _notifyIcon.Icon = icon;
                 _icon?.Dispose();
                 _icon = icon;
                 _look = look;
             }
 
-            var tooltip = text.Length > MaxTooltipLength ? text[..MaxTooltipLength] : text;
-            if (_text != tooltip)
+            if (TrayLogic.NeedsTooltip(_text, state.Tooltip))
             {
-                _notifyIcon.Text = tooltip;
-                _text = tooltip;
+                _notifyIcon.Text = state.Tooltip;
+                _text = state.Tooltip;
             }
 
             // Показуємо лише тепер: значок без намальованого Icon був би порожнім квадратом.
             if (!_notifyIcon.Visible) _notifyIcon.Visible = true;
         }
 
-        public void Dispose()
+        public void Hide()
         {
-            _notifyIcon.Visible = false;
-            _notifyIcon.Dispose();
-            _menu.Dispose();
-            _icon?.Dispose();
+            if (_notifyIcon.Visible) _notifyIcon.Visible = false;
         }
     }
 }

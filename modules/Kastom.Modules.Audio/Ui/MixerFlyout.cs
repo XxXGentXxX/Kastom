@@ -21,11 +21,16 @@ public sealed class MixerFlyout : Window
     // Клік по значку, що забрав фокус у панелі, не має відкривати її знову.
     private const long ReopenGuardMilliseconds = 400;
 
+    private readonly MixerView _view;
     private long _hiddenAt = -ReopenGuardMilliseconds * 10;
+
+    // Екран, біля якого панель показано востаннє: потрібен, щоб утримати її нижній край біля панелі задач, коли висота змінюється.
+    private ScreenPlacement? _screen;
 
     public MixerFlyout(MixerHost host)
     {
         Host = host;
+        _view = new MixerView(host, MixerMode.Flyout);
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -41,13 +46,14 @@ public sealed class MixerFlyout : Window
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new MixerView(host, MixerMode.Flyout),
+            Content = _view,
         };
         var frame = new Border { BorderThickness = new Thickness(1), Child = scroll };
         frame.SetResourceReference(Border.BorderBrushProperty, ThemeKeys.CardStroke);
         Content = frame;
 
         SourceInitialized += (_, _) => RoundCorners();
+        SizeChanged += OnSizeChanged;
         Deactivated += (_, _) => HideRemembering();
         PreviewKeyDown += (_, e) =>
         {
@@ -83,6 +89,17 @@ public sealed class MixerFlyout : Window
     }
 
     /// <summary>
+    /// Вікно панелі у фізичних пікселях: розмір за висотою вмісту <paramref name="heightDip"/> (незалежні від DPI
+    /// одиниці WPF) і <paramref name="scale"/> монітора, позиція — <see cref="ComputePlacement"/>.
+    /// </summary>
+    internal static Rect ComputeFrame(Rect workAreaPx, Rect boundsPx, double scale, double heightDip)
+    {
+        var size = new Size(Math.Round(PanelWidth * scale), Math.Ceiling(heightDip * scale));
+        var origin = ComputePlacement(workAreaPx, boundsPx, size);
+        return new Rect(origin, size);
+    }
+
+    /// <summary>
     /// Показати біля області сповіщень того монітора, де лежить точка (фізичні пікселі екрана, як Cursor.Position),
     /// і зробити активною. Якщо панель уже відкрита — лише перемістити й активувати.
     /// </summary>
@@ -93,24 +110,30 @@ public sealed class MixerFlyout : Window
         var work = ToRect(screen.WorkingArea);
         var bounds = ToRect(screen.Bounds);
         var scale = MonitorScale(point);
+        _screen = new ScreenPlacement(work, bounds, scale);
+
+        // Схований мікшер знімків не малює: без цього вміст міряється порожнім і панель виходить не того розміру.
+        _view.RefreshNow();
+
+        // Уже показувана панель має відкладені зміни розмітки: без цього Measure повернув би розмір з минулого разу.
+        UpdateLayout();
 
         // Розмір рахуємо заздалегідь: позицію в пікселях треба знати до показу.
         MaxHeight = work.Height * MaxHeightShare / scale;
         var content = (UIElement)Content;
         content.Measure(new Size(PanelWidth, MaxHeight));
-        var size = new Size(Math.Round(PanelWidth * scale), Math.Ceiling(Math.Min(content.DesiredSize.Height, MaxHeight) * scale));
-        var origin = ComputePlacement(work, bounds, size);
+        var frame = ComputeFrame(work, bounds, scale, Math.Min(content.DesiredSize.Height, MaxHeight));
 
-        Left = origin.X / scale;
-        Top = origin.Y / scale;
+        Left = frame.X / scale;
+        Top = frame.Y / scale;
         var handle = new WindowInteropHelper(this).EnsureHandle();
-        Place(handle, origin, size);
+        Place(handle, frame);
 
         if (!IsVisible) Show();
         Activate();
 
         // Показ міг перерахувати розмір під DPI вікна; ще раз ставимо точні пікселі.
-        Place(handle, origin, size);
+        Place(handle, frame);
     }
 
     /// <summary>
@@ -138,8 +161,19 @@ public sealed class MixerFlyout : Window
 
     private static Rect ToRect(System.Drawing.Rectangle r) => new(r.X, r.Y, r.Width, r.Height);
 
-    private static void Place(IntPtr handle, Point origin, Size size) =>
-        SetWindowPos(handle, HwndTopmost, (int)Math.Round(origin.X), (int)Math.Round(origin.Y), (int)size.Width, (int)size.Height, SwpNoActivate);
+    // Вікно росте само (SizeToContent): коли додається рядок, нижній край має лишитися біля панелі задач, а не поїхати вниз.
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!IsVisible || _screen is not { } screen || !e.HeightChanged) return;
+
+        var frame = ComputeFrame(screen.WorkArea, screen.Bounds, screen.Scale, e.NewSize.Height);
+        Place(new WindowInteropHelper(this).Handle, frame);
+    }
+
+    private static void Place(IntPtr handle, Rect frame) =>
+        SetWindowPos(handle, HwndTopmost, (int)Math.Round(frame.X), (int)Math.Round(frame.Y), (int)frame.Width, (int)frame.Height, SwpNoActivate);
+
+    private readonly record struct ScreenPlacement(Rect WorkArea, Rect Bounds, double Scale);
 
     private static double MonitorScale(System.Drawing.Point point)
     {

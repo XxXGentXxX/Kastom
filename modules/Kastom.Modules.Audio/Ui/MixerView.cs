@@ -58,6 +58,8 @@ public sealed class MixerView : UserControl
     private int _snapshotQueued;
     private int _peaksQueued;
     private IDisposable? _ticket;
+    private bool _ticketHasMic;
+    private bool _hadMics;
     private bool _attached;
 
     public MixerView(MixerHost host, MixerMode mode)
@@ -138,26 +140,43 @@ public sealed class MixerView : UserControl
         CloseTicket();
     }
 
-    /// <summary>Узгодити «квиток» вимірювання з тим, чи мікшер видно й чи ввімкнено індикатори.</summary>
+    /// <summary>
+    /// Узгодити «квиток» вимірювання з тим, чи мікшер видно й чи ввімкнено індикатори. Рівень мікрофона просимо
+    /// лише там, де його індикатор справді на екрані: на сторінці й у панелі, коли є картка мікрофона. Віджет видно
+    /// завжди, і мікрофон через нього не має бути відкритий постійно.
+    /// </summary>
     internal void UpdateMeterTicket()
     {
         var want = _attached && Host.Options.ShowMeters && IsShown;
-        if (want && _ticket is null)
+        var wantMic = want && Mode != MixerMode.Widget && _inputCards.Count > 0;
+        if (!want)
         {
-            try
-            {
-                _ticket = Host.Backend.BeginMetering();
-            }
-            catch (Exception ex)
-            {
-                _ctx.Report(Strings.OsdCommandFailed, ex);
-            }
+            if (_ticket is not null) CloseTicket();
+            return;
         }
-        else if (!want && _ticket is not null)
+
+        if (_ticket is not null && _ticketHasMic == wantMic) return;
+
+        try
         {
-            CloseTicket();
+            // Новий квиток відкриваємо до закриття старого: бекенд не зупиняє вимірювання посеред перепросу.
+            var next = Host.Backend.BeginMetering(microphone: wantMic);
+            var previous = _ticket;
+            _ticket = next;
+            _ticketHasMic = wantMic;
+            previous?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _ctx.Report(Strings.OsdCommandFailed, ex);
         }
     }
+
+    /// <summary>
+    /// Синхронно намалювати поточний знімок бекенда, навіть якщо мікшер ще не показано й не підписано на події.
+    /// Потрібно панелі біля годинника: розмір вікна міряється до показу, а схований мікшер знімків не малює.
+    /// </summary>
+    internal void RefreshNow() => Apply(Host.Backend.Current);
 
     /// <summary>Запланувати перемалювання за поточним знімком бекенда (можна з будь-якого потоку).</summary>
     internal void ScheduleCurrent()
@@ -170,6 +189,7 @@ public sealed class MixerView : UserControl
     {
         _ticket?.Dispose();
         _ticket = null;
+        _ticketHasMic = false;
         foreach (var meter in _meters) meter.Reset();
     }
 
@@ -254,6 +274,12 @@ public sealed class MixerView : UserControl
         _noInputs.Visibility = Show(inputs.Count == 0);
 
         _meters = _outputCards.Values.Concat(_inputCards.Values).SelectMany(c => c.Meters).ToList();
+
+        // Мікрофон з'явився чи зник: індикатор мікрофона або з'явився, або ні, тож квиток треба перевідкрити.
+        var hasMics = _inputCards.Count > 0;
+        if (hasMics == _hadMics) return;
+        _hadMics = hasMics;
+        UpdateMeterTicket();
     }
 
     private void ApplyWidget(AudioSnapshot snapshot)

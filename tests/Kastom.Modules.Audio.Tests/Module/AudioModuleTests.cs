@@ -89,6 +89,82 @@ public sealed class AudioModuleTests
     });
 
     [Fact]
+    public void CancelledStartStopsTheBackendAndThrows() => Sta.Run(() =>
+    {
+        var (module, context) = Configured();
+        var backend = (FakeAudioBackend)module.Host.Backend;
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var start = module.StartAsync(cancellation.Token);
+
+        // Скасування виходить як OperationCanceledException: задача в стані Canceled.
+        Assert.True(start.IsCanceled);
+        Assert.False(backend.IsStarted);
+        Assert.False(backend.Current.IsAvailable);
+        Assert.Empty(context.Logger.Errors);
+
+        // Недозапущений модуль не відкриває панель, але повторний запуск після цього працює.
+        context.ActionRegistry.Actions.Single(a => a.Id == ActionIds.OpenMixer)
+            .Execute(new ActionContext { Trigger = ActionTrigger.Hotkey }).GetAwaiter().GetResult();
+        Assert.Null(module.CurrentFlyout);
+
+        module.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Assert.True(backend.IsStarted);
+        module.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+    });
+
+    [Fact]
+    public void BackendFailureOnStartIsPassedOnAfterCleanup() => Sta.Run(() =>
+    {
+        var (module, context) = Configured();
+        var backend = (FakeAudioBackend)module.Host.Backend;
+        backend.Changed += (_, _) => throw new InvalidOperationException("підписник упав");
+
+        var start = module.StartAsync(CancellationToken.None);
+
+        Assert.IsType<InvalidOperationException>(Assert.Single(start.Exception!.InnerExceptions));
+        Assert.False(backend.IsStarted);
+        Assert.Empty(context.Logger.Errors);
+    });
+
+    [Fact]
+    public void OpeningTheMixerAfterStopCreatesNoPanel() => Sta.Run(() =>
+    {
+        var (module, context) = Configured();
+        module.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        module.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        // Дія з черги, що дійшла вже після зупинки.
+        context.ActionRegistry.Actions.Single(a => a.Id == ActionIds.OpenMixer)
+            .Execute(new ActionContext { Trigger = ActionTrigger.Hotkey }).GetAwaiter().GetResult();
+
+        Assert.Null(module.CurrentFlyout);
+    });
+
+    [Fact]
+    public void StopClosesThePanelAndRestartGetsANewOne() => Sta.Run(() =>
+    {
+        var (module, _) = Configured();
+        module.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var first = module.Flyout();
+        var closed = false;
+        first.Closed += (_, _) => closed = true;
+        Assert.Same(first, module.Flyout());
+
+        module.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        Assert.True(closed);
+        Assert.Null(module.CurrentFlyout);
+
+        module.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var second = module.Flyout();
+        Assert.NotSame(first, second);
+        Assert.False(second.IsVisible);
+        module.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+    });
+
+    [Fact]
     public void StopWithoutStartIsHarmless() => Sta.Run(() =>
     {
         var (module, _) = Configured();
