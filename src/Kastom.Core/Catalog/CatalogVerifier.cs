@@ -92,6 +92,8 @@ public sealed class CatalogVerifier
         if (catalog.Modules is null) throw new CatalogValidationException("У каталозі немає списку модулів (modules).");
 
         var ids = new HashSet<string>(StringComparer.Ordinal);
+        var modules = new List<CatalogEntry>();
+        var iconProblems = new List<string>();
         foreach (var entry in catalog.Modules)
         {
             if (entry is null) throw new CatalogValidationException("У списку модулів є порожній запис.");
@@ -99,6 +101,17 @@ public sealed class CatalogVerifier
             if (problem is not null) throw new CatalogValidationException(problem);
             if (!ids.Add(entry.Id))
                 throw new CatalogValidationException($"Модуль '{entry.Id}' повторюється в каталозі.");
+
+            // Значок — прикраса: через нього не відкидають увесь каталог із встановленням і оновленнями.
+            if (ModuleIcons.TryDecode(entry.Icon, out _, out var iconProblem))
+            {
+                modules.Add(entry);
+            }
+            else
+            {
+                modules.Add(entry.WithoutIcon());
+                iconProblems.Add($"Модуль '{entry.Id}': значок з каталогу відкинуто: {iconProblem}");
+            }
         }
 
         if (catalog.Launcher is not null)
@@ -107,7 +120,15 @@ public sealed class CatalogVerifier
             if (launcherProblem is not null) throw new CatalogValidationException(launcherProblem);
         }
 
-        return catalog;
+        if (iconProblems.Count == 0) return catalog;
+        return new ModuleCatalog
+        {
+            SchemaVersion = catalog.SchemaVersion,
+            GeneratedAt = catalog.GeneratedAt,
+            Modules = modules,
+            Launcher = catalog.Launcher,
+            IconProblems = iconProblems,
+        };
     }
 
     private static bool IsP256(ECDsa key)

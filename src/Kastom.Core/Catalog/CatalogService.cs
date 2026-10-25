@@ -25,6 +25,7 @@ public sealed class CatalogService : ICatalogService
         _cacheRoot = source.AllowsFileUrls ? paths.CatalogCacheRoot + "-dev" : paths.CatalogCacheRoot;
         _log = log;
         (_current, _currentRaw) = LoadCache(verifier);
+        LogIconProblems(_current);
     }
 
     public ModuleCatalog? Current
@@ -71,6 +72,7 @@ public sealed class CatalogService : ICatalogService
                     _currentRaw = result.RawCatalog;
                 }
 
+                LogIconProblems(result.Catalog);
                 _source.MarkAccepted(result);
                 if (changed) CatalogChanged?.Invoke(this, EventArgs.Empty);
                 break;
@@ -85,6 +87,12 @@ public sealed class CatalogService : ICatalogService
         }
 
         return result;
+    }
+
+    private void LogIconProblems(ModuleCatalog? catalog)
+    {
+        if (catalog is null) return;
+        foreach (var problem in catalog.IconProblems) _log.Warn(problem);
     }
 
     private const string RollbackError = "Отримано старіший каталог, ніж уже прийнятий; його відкинуто.";

@@ -43,6 +43,12 @@ public sealed partial class ModuleManifest
 
     public string? Author { get; init; }
 
+    /// <summary>
+    /// Значок модуля: шлях до PNG у пакеті, відносний, зі слешами "/" ("icon.png", "assets/icon.png"), без ".." і кореня,
+    /// файл до 32 КБ. Квадратний бажано (64 чи 128 px); розмір у пікселях ніхто не перевіряє. Правила — <see cref="Catalog.ModuleIcons"/>.
+    /// </summary>
+    public string? Icon { get; init; }
+
     public static bool IsValidId(string? id) =>
         id is { Length: > 0 and <= 40 } && id != KastomSdk.LauncherModuleId && IdPattern().IsMatch(id);
 

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Kastom.Core.Models;
 
 /// <summary>
@@ -25,6 +27,13 @@ public sealed class ModuleCatalog
     /// Null — оновлювати лаунчер не можна.
     /// </summary>
     public LauncherRelease? Launcher { get; init; }
+
+    /// <summary>
+    /// Значки, які перевіряльник відкинув (запис лишився без значка). Не частина файлу: у JSON не пишеться й не читається;
+    /// <see cref="Catalog.CatalogService"/> виписує їх у лог.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> IconProblems { get; init; } = [];
 }
 
 /// <summary>Реліз лаунчера, яким його публікує Velopack (повний пакет *-full.nupkg).</summary>
@@ -66,4 +75,27 @@ public sealed class CatalogEntry
     public long Size { get; init; }
 
     public string? Changelog { get; init; }
+
+    /// <summary>
+    /// Значок модуля — PNG до 32 КБ у base64. Лежить прямо в каталозі, щоб лаунчер показав його ще до встановлення
+    /// і щоб підпис каталогу захищав і його. Null — значка немає.
+    /// </summary>
+    public string? Icon { get; init; }
+
+    /// <summary>Той самий запис без значка: так перевіряльник каталогу відкидає неправильний значок, не чіпаючи решти запису.</summary>
+    internal CatalogEntry WithoutIcon() => new()
+    {
+        Id = Id,
+        Name = Name,
+        Description = Description,
+        Version = Version,
+        ContractVersion = ContractVersion,
+        MinLauncherVersion = MinLauncherVersion,
+        RunMode = RunMode,
+        Url = Url,
+        Sha256 = Sha256,
+        Size = Size,
+        Changelog = Changelog,
+        Icon = null,
+    };
 }

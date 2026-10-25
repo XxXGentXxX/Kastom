@@ -335,6 +335,10 @@ public sealed class ModuleInstaller(
         if (!File.Exists(Path.Combine(directory, assembly)))
             return $"У пакеті немає збірки '{assembly}', указаної в module.json.";
 
+        // Небезпечний шлях значка — відмова, як і для інших шляхів; а от відсутній файл значка — не причина: модуль буде без значка.
+        if (manifest.Icon is not null && ModuleIcons.ValidatePath(manifest.Icon) is { } iconProblem)
+            return $"module.json: {iconProblem}";
+
         return null;
     }
 
