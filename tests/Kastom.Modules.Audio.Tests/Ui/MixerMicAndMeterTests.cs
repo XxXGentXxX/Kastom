@@ -208,6 +208,98 @@ public sealed class MixerMeterTests
         });
     }
 
+    private static AudioSnapshot WithoutMics(AudioSnapshot snapshot) =>
+        snapshot with { Devices = snapshot.Devices.Where(d => d.Flow == AudioFlow.Render).ToArray() };
+
+    [Theory]
+    [InlineData(MixerMode.Page, 1)]
+    [InlineData(MixerMode.Flyout, 1)]
+    [InlineData(MixerMode.Widget, 0)]
+    public void MicrophoneLevelIsRequestedOnlyWhereItsMeterIsOnScreen(MixerMode mode, int expectedMicTickets)
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create(mode);
+
+            Assert.Equal(1, f.Backend.MeteringCount);
+            Assert.Equal(expectedMicTickets, f.Backend.MicMeteringCount);
+
+            f.View.Detach();
+            Assert.Equal(0, f.Backend.MeteringCount);
+            Assert.Equal(0, f.Backend.MicMeteringCount);
+        });
+    }
+
+    [Theory]
+    [InlineData(MixerMode.Page)]
+    [InlineData(MixerMode.Flyout)]
+    [InlineData(MixerMode.Widget)]
+    public void NoMicrophoneTicketWithoutMicrophones(MixerMode mode)
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create(mode, attach: false);
+            f.Backend.Replace(WithoutMics(f.Backend.Current));
+            f.View.Attach();
+
+            Assert.Equal(1, f.Backend.MeteringCount);
+            Assert.Equal(0, f.Backend.MicMeteringCount);
+        });
+    }
+
+    [Fact]
+    public void NoMicrophoneTicketWhenMetersAreOff()
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create(configure: s => s.Set(SettingKeys.ShowMeters, false));
+
+            Assert.Equal(0, f.Backend.MeteringCount);
+            Assert.Equal(0, f.Backend.MicMeteringCount);
+        });
+    }
+
+    [Fact]
+    public void TicketIsReopenedWhenAMicrophoneAppearsOrDisappears()
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create();
+            var full = f.Backend.Current;
+            Assert.Equal(1, f.Backend.MicMeteringCount);
+
+            f.Backend.Replace(WithoutMics(full));
+            Sta.DoEvents();
+            Assert.Equal(1, f.Backend.MeteringCount);
+            Assert.Equal(0, f.Backend.MicMeteringCount);
+
+            f.Backend.Replace(full);
+            Sta.DoEvents();
+            Assert.Equal(1, f.Backend.MeteringCount);
+            Assert.Equal(1, f.Backend.MicMeteringCount);
+
+            f.View.Detach();
+            Assert.Equal(0, f.Backend.MeteringCount);
+            Assert.Equal(0, f.Backend.MicMeteringCount);
+        });
+    }
+
+    [Fact]
+    public void NoReopeningWhileMicrophonesStayTheSame()
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create();
+            var snapshot = f.Backend.Current;
+
+            f.Backend.Replace(snapshot with { Devices = snapshot.Devices.Select(d => d with { Volume = 0.1f }).ToArray() });
+            Sta.DoEvents();
+
+            Assert.Equal(1, f.Backend.MeteringCount);
+            Assert.Equal(1, f.Backend.MicMeteringCount);
+        });
+    }
+
     [Fact]
     public void NoTicketWhenMetersAreOff()
     {

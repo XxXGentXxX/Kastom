@@ -80,15 +80,25 @@ internal sealed class VolumeSlider : Slider
         }
     }
 
+    /// <summary>
+    /// На сторінці коліщатко гортає її, тож повзунок бере його лише тоді, коли користувач сам його вибрав
+    /// (фокус клавіатури); у панелі й віджеті гортати нічого, тут коліщатко завжди міняє гучність.
+    /// </summary>
+    public bool WheelNeedsFocus { get; init; }
+
+    internal static bool WheelApplies(bool wheelNeedsFocus, bool hasFocus) => !wheelNeedsFocus || hasFocus;
+
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
+        if (!WheelApplies(WheelNeedsFocus, IsKeyboardFocusWithin)) return;
+
         if (e.Delta != 0 && IsEnabled)
         {
             var next = VolumeMath.Step(VolumeMath.FromPercent(Value), _stepPercent(), e.Delta > 0);
             Value = VolumeMath.ToPercent(next);
         }
 
-        // Лише над повзунком: решта сторінки гортається як зазвичай.
+        // Лише над повзунком у фокусі (або в панелі): решта сторінки гортається як зазвичай.
         e.Handled = true;
     }
 

@@ -407,24 +407,93 @@ public sealed class AudioActionsAppTests
         var f = await ActionsFixture.CreateAsync();
         var chrome = f.App("chrome");
         var speakers = f.Snapshot.Outputs.First(d => d.Id != chrome.DeviceId && !d.IsMuted);
-        var onSpeakers = chrome with { DeviceId = speakers.Id, IsMuted = true, Volume = 0.3f };
+        var oldSession = chrome with { DeviceId = speakers.Id, IsMuted = true, Volume = 0.3f, IsActive = false };
         f.Backend.Replace(f.Snapshot with
         {
-            Devices = f.Snapshot.Devices.Select(d => d.Id == speakers.Id ? d with { Apps = [.. d.Apps, onSpeakers] } : d).ToArray(),
+            Devices = f.Snapshot.Devices.Select(d => d.Id == speakers.Id ? d with { Apps = [.. d.Apps, oldSession] } : d).ToArray(),
         });
         f.Foreground.Current = Process(chrome.ProcessIds[0], "chrome");
 
-        // Один сеанс уже вимкнено, інший ні: вимикаються всі.
+        // Провідний сеанс (той, що звучить) не вимкнений: вимикаються всі, хоч старий сеанс уже був вимкнений.
         await f.Press(ActionIds.ToggleActiveApp);
         Assert.All(f.Snapshot.AllApps.Where(a => a.ProcessName == "chrome"), a => Assert.True(a.IsMuted));
         await f.Press(ActionIds.ToggleActiveApp);
         Assert.All(f.Snapshot.AllApps.Where(a => a.ProcessName == "chrome"), a => Assert.False(a.IsMuted));
 
-        // Гучність рахується від першого збігу, нове значення однакове для всіх.
+        // Гучність рахується від провідного сеансу, нове значення однакове для всіх.
         await f.Press(ActionIds.ActiveAppVolumeUp);
         var volumes = f.Snapshot.AllApps.Where(a => a.ProcessName == "chrome").Select(a => VolumeMath.ToPercent(a.Volume)).ToList();
         Assert.Equal(new[] { 82, 82 }, volumes);
         Assert.Equal(Strings.Format(Strings.OsdAppVolumeFormat, chrome.Name, 82), f.LastOsd);
+    }
+
+    /// <summary>Знімок, де Chrome грає в навушники (80 %), а старий неактивний сеанс на колонках (30 %) стоїть у переліку першим.</summary>
+    private static async Task<(ActionsFixture Fixture, AudioApp Playing)> ChromeWithStaleSessionFirstAsync(bool staleMuted)
+    {
+        var f = await ActionsFixture.CreateAsync();
+        var playing = f.App("chrome");
+        var speakers = f.Snapshot.Outputs.First(d => d.Id != playing.DeviceId && !d.IsMuted);
+        var stale = playing with { DeviceId = speakers.Id, IsMuted = staleMuted, Volume = 0.3f, IsActive = false };
+        var devices = f.Snapshot.Devices
+            .Select(d => d.Id == speakers.Id ? d with { Apps = [.. d.Apps, stale] } : d)
+            .OrderBy(d => d.Id == speakers.Id ? 0 : 1)
+            .ToArray();
+        f.Backend.Replace(f.Snapshot with { Devices = devices });
+        f.Foreground.Current = Process(playing.ProcessIds[0], "chrome");
+        Assert.Equal(speakers.Id, f.Snapshot.AllApps.First(a => a.ProcessName == "chrome").DeviceId);
+        return (f, playing);
+    }
+
+    [Fact]
+    public async Task ActiveAppVolumeIsCountedFromThePlayingSessionNotTheFirstInList()
+    {
+        var (f, playing) = await ChromeWithStaleSessionFirstAsync(staleMuted: false);
+
+        await f.Press(ActionIds.ActiveAppVolumeUp);
+
+        Assert.All(f.Snapshot.AllApps.Where(a => a.ProcessName == "chrome"), a => Assert.Equal(82, VolumeMath.ToPercent(a.Volume)));
+        Assert.Equal(Strings.Format(Strings.OsdAppVolumeFormat, playing.Name, 82), f.LastOsd);
+    }
+
+    [Fact]
+    public async Task ActiveAppMuteFollowsThePlayingSessionAndGoesToAllMatches()
+    {
+        var (f, playing) = await ChromeWithStaleSessionFirstAsync(staleMuted: true);
+
+        // Звучить невимкнений сеанс: вимикаємо всі, навіть коли перший у переліку вже вимкнений.
+        await f.Press(ActionIds.ToggleActiveApp);
+
+        Assert.All(f.Snapshot.AllApps.Where(a => a.ProcessName == "chrome"), a => Assert.True(a.IsMuted));
+        Assert.Equal(Strings.Format(Strings.OsdAppMutedFormat, playing.Name), f.LastOsd);
+    }
+
+    [Fact]
+    public void LeadAppPrefersPlayingThenDefaultOutputThenFirst()
+    {
+        const string defaultDevice = "default";
+        const string other = "other";
+        AudioApp App(string device, bool active) => new()
+        {
+            Key = "chrome",
+            DeviceId = device,
+            Name = "Chrome",
+            Volume = 0.5f,
+            IsMuted = false,
+            IsActive = active,
+        };
+        var snapshot = new AudioSnapshot(
+        [
+            new AudioDevice { Id = other, Flow = AudioFlow.Render, Name = "Other", Volume = 1, IsMuted = false },
+            new AudioDevice { Id = defaultDevice, Flow = AudioFlow.Render, Name = "Default", Volume = 1, IsMuted = false, IsDefault = true },
+        ]);
+
+        var idleOther = App(other, active: false);
+        var idleDefault = App(defaultDevice, active: false);
+        var playingOther = App(other, active: true);
+
+        Assert.Same(playingOther, AudioActions.LeadApp([idleDefault, playingOther], snapshot));
+        Assert.Same(idleDefault, AudioActions.LeadApp([idleOther, idleDefault], snapshot));
+        Assert.Same(idleOther, AudioActions.LeadApp([idleOther, App("third", active: false)], snapshot));
     }
 
     [Fact]
@@ -540,15 +609,15 @@ public sealed class AudioActionsRegistrationTests
             {
                 [ActionIds.ToggleMic] = "Ctrl+Alt+M",
                 [ActionIds.NextOutput] = "Ctrl+Alt+O",
-                [ActionIds.VolumeUp] = "Ctrl+Alt+Up",
-                [ActionIds.VolumeDown] = "Ctrl+Alt+Down",
+                [ActionIds.VolumeUp] = "Ctrl+Alt+PageUp",
+                [ActionIds.VolumeDown] = "Ctrl+Alt+PageDown",
                 [ActionIds.OpenMixer] = "Ctrl+Alt+X",
             },
             hotkeys.ToDictionary(p => p.Key, p => p.Value.ToString()));
         Assert.All(hotkeys.Values, h => Assert.Equal(HotkeyModifiers.Control | HotkeyModifiers.Alt, h.Modifiers));
         Assert.All(hotkeys.Values, h => Assert.True(h.IsValid));
-        Assert.Equal(0x26, hotkeys[ActionIds.VolumeUp].VirtualKey);
-        Assert.Equal(0x28, hotkeys[ActionIds.VolumeDown].VirtualKey);
+        Assert.Equal(0x21, hotkeys[ActionIds.VolumeUp].VirtualKey);
+        Assert.Equal(0x22, hotkeys[ActionIds.VolumeDown].VirtualKey);
         Assert.DoesNotContain(hotkeys.Values, h => h.VirtualKey == 'U');
     }
 

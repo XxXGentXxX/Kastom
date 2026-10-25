@@ -14,7 +14,7 @@ namespace Kastom.Modules.Audio.Actions;
 internal sealed class AudioActions(MixerHost host, INotificationService osd, IForegroundApp foreground, Action openMixer)
 {
     // Усі типові поєднання мають однакові модифікатори Ctrl+Alt: так «адресу модуля» легко запам'ятати.
-    // Літеру U не беремо: AltGr+Г дає «ґ».
+    // Літеру U не беремо: AltGr+Г дає «ґ». Стрілки теж: Ctrl+Alt+Up/Down у VS Code — мультикурсор.
     private const HotkeyModifiers Address = HotkeyModifiers.Control | HotkeyModifiers.Alt;
 
     public void Register(IActionRegistry registry)
@@ -34,8 +34,8 @@ internal sealed class AudioActions(MixerHost host, INotificationService osd, IFo
         Add(registry, ActionIds.ToggleOutput, Strings.ActionToggleOutput);
         Add(registry, ActionIds.NextOutput, Strings.ActionNextOutput, hotkey: 'O');
         Add(registry, ActionIds.PrevOutput, Strings.ActionPrevOutput);
-        Add(registry, ActionIds.VolumeUp, Strings.ActionVolumeUp, hotkey: 0x26);
-        Add(registry, ActionIds.VolumeDown, Strings.ActionVolumeDown, hotkey: 0x28);
+        Add(registry, ActionIds.VolumeUp, Strings.ActionVolumeUp, hotkey: 0x21);
+        Add(registry, ActionIds.VolumeDown, Strings.ActionVolumeDown, hotkey: 0x22);
         Add(registry, ActionIds.ToggleActiveApp, Strings.ActionToggleActiveApp, Strings.ActionActiveAppDescription);
         Add(registry, ActionIds.ActiveAppVolumeUp, Strings.ActionActiveAppVolumeUp, Strings.ActionActiveAppDescription);
         Add(registry, ActionIds.ActiveAppVolumeDown, Strings.ActionActiveAppVolumeDown, Strings.ActionActiveAppDescription);
@@ -119,9 +119,9 @@ internal sealed class AudioActions(MixerHost host, INotificationService osd, IFo
             case ActionIds.PrevOutput: return await SwitchDefaultAsync(snapshot, AudioFlow.Render, -1);
             case ActionIds.VolumeUp: return await ChangeOutputVolumeAsync(snapshot, up: true);
             case ActionIds.VolumeDown: return await ChangeOutputVolumeAsync(snapshot, up: false);
-            case ActionIds.ToggleActiveApp: return await ToggleAppsAsync(FindActiveApp(snapshot), Strings.OsdNoActiveApp);
-            case ActionIds.ActiveAppVolumeUp: return await ChangeAppVolumeAsync(FindActiveApp(snapshot), up: true, Strings.OsdNoActiveApp);
-            case ActionIds.ActiveAppVolumeDown: return await ChangeAppVolumeAsync(FindActiveApp(snapshot), up: false, Strings.OsdNoActiveApp);
+            case ActionIds.ToggleActiveApp: return await ToggleAppsAsync(FindActiveApp(snapshot), snapshot, Strings.OsdNoActiveApp);
+            case ActionIds.ActiveAppVolumeUp: return await ChangeAppVolumeAsync(FindActiveApp(snapshot), snapshot, up: true, Strings.OsdNoActiveApp);
+            case ActionIds.ActiveAppVolumeDown: return await ChangeAppVolumeAsync(FindActiveApp(snapshot), snapshot, up: false, Strings.OsdNoActiveApp);
             case ActionIds.ResetAppOutputs:
                 await host.Backend.ResetAppOutputsAsync();
                 return Strings.OsdAppOutputsReset;
@@ -215,8 +215,8 @@ internal sealed class AudioActions(MixerHost host, INotificationService osd, IFo
             .ToList();
         var notPlaying = Strings.Format(Strings.OsdAppNotPlayingFormat, wanted);
         return up is { } direction
-            ? await ChangeAppVolumeAsync(apps, direction, notPlaying)
-            : await ToggleAppsAsync(apps, notPlaying);
+            ? await ChangeAppVolumeAsync(apps, snapshot, direction, notPlaying)
+            : await ToggleAppsAsync(apps, snapshot, notPlaying);
     }
 
     /// <summary>
@@ -234,27 +234,41 @@ internal sealed class AudioActions(MixerHost host, INotificationService osd, IFo
             : apps.Where(a => string.Equals(a.ProcessName, active.ProcessName, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
-    /// <summary>Хоч одна не вимкнена — вимкнути всі, інакше ввімкнути всі (одна програма може звучати на двох пристроях).</summary>
-    private async Task<string> ToggleAppsAsync(List<AudioApp> apps, string missing)
+    /// <summary>
+    /// Сеанс, від якого рахуємо нове значення: той, що звучить, інакше той, що на пристрої за замовчуванням,
+    /// інакше перший. Старий неактивний сеанс тієї ж програми на іншому виході не має задавати гучність.
+    /// </summary>
+    internal static AudioApp LeadApp(IReadOnlyList<AudioApp> apps, AudioSnapshot snapshot)
     {
-        if (apps.Count == 0) return missing;
-
-        var mute = apps.Any(a => !a.IsMuted);
-        foreach (var app in apps) await host.Backend.SetAppMuteAsync(app.DeviceId, app.Key, mute);
-        return Strings.Format(mute ? Strings.OsdAppMutedFormat : Strings.OsdAppUnmutedFormat, apps[0].Name);
+        var defaultId = snapshot.DefaultOutput?.Id;
+        return apps.FirstOrDefault(a => a.IsActive)
+               ?? apps.FirstOrDefault(a => a.DeviceId == defaultId)
+               ?? apps[0];
     }
 
-    private async Task<string> ChangeAppVolumeAsync(List<AudioApp> apps, bool up, string missing)
+    /// <summary>Усі збіги отримують протилежне до провідного сеансу значення (одна програма може звучати на двох пристроях).</summary>
+    private async Task<string> ToggleAppsAsync(List<AudioApp> apps, AudioSnapshot snapshot, string missing)
     {
         if (apps.Count == 0) return missing;
 
-        var volume = VolumeMath.Step(apps[0].Volume, host.Options.VolumeStepPercent, up);
+        var lead = LeadApp(apps, snapshot);
+        var mute = !lead.IsMuted;
+        foreach (var app in apps) await host.Backend.SetAppMuteAsync(app.DeviceId, app.Key, mute);
+        return Strings.Format(mute ? Strings.OsdAppMutedFormat : Strings.OsdAppUnmutedFormat, lead.Name);
+    }
+
+    private async Task<string> ChangeAppVolumeAsync(List<AudioApp> apps, AudioSnapshot snapshot, bool up, string missing)
+    {
+        if (apps.Count == 0) return missing;
+
+        var lead = LeadApp(apps, snapshot);
+        var volume = VolumeMath.Step(lead.Volume, host.Options.VolumeStepPercent, up);
         foreach (var app in apps)
         {
             await host.Backend.SetAppVolumeAsync(app.DeviceId, app.Key, volume);
             if (up && app.IsMuted) await host.Backend.SetAppMuteAsync(app.DeviceId, app.Key, false);
         }
 
-        return Strings.Format(Strings.OsdAppVolumeFormat, apps[0].Name, VolumeMath.ToPercent(volume));
+        return Strings.Format(Strings.OsdAppVolumeFormat, lead.Name, VolumeMath.ToPercent(volume));
     }
 }

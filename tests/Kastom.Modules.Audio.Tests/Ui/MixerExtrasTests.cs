@@ -63,6 +63,82 @@ public sealed class FlyoutPlacementTests
         Assert.Equal(0, origin.Y);
     }
 
+    [Theory]
+    [InlineData(1.0, 1040)]
+    [InlineData(1.5, 1560)]
+    public void GrowingPanelKeepsItsBottomEdgeNextToTheTaskbar(double scale, double workBottom)
+    {
+        var work = new Rect(0, 0, 1920 * scale, workBottom);
+        var bounds = new Rect(0, 0, 1920 * scale, workBottom + 40 * scale);
+
+        var small = MixerFlyout.ComputeFrame(work, bounds, scale, 300);
+        var tall = MixerFlyout.ComputeFrame(work, bounds, scale, 420);
+
+        Assert.Equal(work.Bottom - 12, small.Bottom);
+        Assert.Equal(work.Bottom - 12, tall.Bottom);
+        Assert.True(tall.Top < small.Top);
+        Assert.Equal(small.Right, tall.Right);
+    }
+
+    [Fact]
+    public void FrameIsInPixelsOfTheMonitor()
+    {
+        var frame = MixerFlyout.ComputeFrame(new Rect(0, 0, 2880, 1560), new Rect(0, 0, 2880, 1620), 1.5, 301);
+
+        Assert.Equal(570, frame.Width);
+        Assert.Equal(452, frame.Height);
+        Assert.Equal(new Point(2880 - 570 - 12, 1560 - 452 - 12), frame.Location);
+    }
+
+    [Fact]
+    public void RefreshNowFillsHiddenUnattachedMixer()
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create(MixerMode.Flyout, attach: false);
+            Assert.Empty(f.View.OutputCards);
+
+            f.View.RefreshNow();
+
+            Assert.Equal(3, f.View.OutputCards.Count);
+            Assert.Equal(2, f.View.InputCards.Count);
+            Assert.Equal(0, f.Backend.MeteringCount);
+        });
+    }
+
+    [Fact]
+    public void RefreshNowMakesTheMixerMeasureToItsRealSize()
+    {
+        Sta.Run(() =>
+        {
+            var untouched = MixerFixture.Create(MixerMode.Flyout, attach: false);
+            untouched.View.Measure(new Size(380, double.PositiveInfinity));
+
+            var refreshed = MixerFixture.Create(MixerMode.Flyout, attach: false);
+            refreshed.View.RefreshNow();
+            refreshed.View.Measure(new Size(380, double.PositiveInfinity));
+
+            Assert.True(
+                refreshed.View.DesiredSize.Height > untouched.View.DesiredSize.Height + 200,
+                $"{untouched.View.DesiredSize.Height} -> {refreshed.View.DesiredSize.Height}");
+        });
+    }
+
+    [Fact]
+    public void LayoutOfNeverShownFlyoutIsHarmless()
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create(attach: false);
+            var flyout = new MixerFlyout(f.Host);
+
+            flyout.UpdateLayout();
+
+            Assert.False(flyout.IsVisible);
+            Assert.False(flyout.IsLoaded);
+        });
+    }
+
     [Fact]
     public void FlyoutIsCreatedHiddenWithPanelProperties()
     {

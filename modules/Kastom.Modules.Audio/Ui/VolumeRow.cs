@@ -19,7 +19,11 @@ internal sealed class VolumeRow : Grid
     {
         _ctx = ctx;
         Mute = new MuteButton(isMic);
-        Slider = new VolumeSlider(() => ctx.Options.VolumeStepPercent) { Margin = new Thickness(8, 0, 8, 0) };
+        Slider = new VolumeSlider(() => ctx.Options.VolumeStepPercent)
+        {
+            Margin = new Thickness(8, 0, 8, 0),
+            WheelNeedsFocus = ctx.Mode == MixerMode.Page,
+        };
         Meter = new LevelMeter { Margin = new Thickness(8, -5, 8, 2), VerticalAlignment = VerticalAlignment.Top };
 
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

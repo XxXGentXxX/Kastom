@@ -114,7 +114,7 @@ public sealed class AudioTrayIconsTests
     [InlineData(1f, TrayGlyph.Volume3)]
     public void SoundGlyphFollowsVolume(float volume, TrayGlyph expected)
     {
-        var (glyph, text) = AudioTrayIcons.DescribeSound(Output(volume));
+        var (glyph, text) = TrayLogic.DescribeSound(Output(volume));
 
         Assert.Equal(expected, glyph);
         Assert.Equal(Strings.Format(Strings.TrayVolumeTooltipFormat, "Навушники", VolumeMath.ToPercent(volume)), text);
@@ -123,12 +123,144 @@ public sealed class AudioTrayIconsTests
     [Fact]
     public void MutedAndMissingOutputsShowTheMutedGlyph()
     {
-        var muted = AudioTrayIcons.DescribeSound(Output(0.8f, muted: true));
-        var none = AudioTrayIcons.DescribeSound(null);
+        var muted = TrayLogic.DescribeSound(Output(0.8f, muted: true));
+        var none = TrayLogic.DescribeSound(null);
 
         Assert.Equal(TrayGlyph.Muted, muted.Glyph);
         Assert.Equal(Strings.Format(Strings.TrayMutedTooltipFormat, "Навушники"), muted.Text);
         Assert.Equal(TrayGlyph.Muted, none.Glyph);
         Assert.Equal(Strings.TrayNoDevice, none.Text);
+    }
+
+    private static AudioDevice Mic(bool muted = false, string name = "Мікрофон (HyperX)") => new()
+    {
+        Id = "mic",
+        Flow = AudioFlow.Capture,
+        Name = name,
+        Volume = 0.7f,
+        IsMuted = muted,
+        IsDefault = true,
+    };
+
+    [Theory]
+    [InlineData(false, TrayGlyph.Mic, false)]
+    [InlineData(true, TrayGlyph.MicOff, true)]
+    public void MicGlyphAndTooltipFollowMute(bool muted, TrayGlyph glyph, bool off)
+    {
+        var (actualGlyph, text) = TrayLogic.DescribeMic(Mic(muted));
+
+        Assert.Equal(glyph, actualGlyph);
+        Assert.Equal(Strings.Format(off ? Strings.TrayMicOffTooltipFormat : Strings.TrayMicOnTooltipFormat, "Мікрофон (HyperX)"), text);
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void SoundIconIsVisibleByTheSettingEvenWithoutDevice(bool enabled, bool visible)
+    {
+        Assert.Equal(visible, TrayLogic.Sound(enabled, Output(0.5f)).Visible);
+        Assert.Equal(visible, TrayLogic.Sound(enabled, null).Visible);
+        Assert.Equal(TrayGlyph.Muted, TrayLogic.Sound(enabled, null).Glyph);
+    }
+
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, false)]
+    public void MicIconIsVisibleOnlyWhenEnabledAndThereIsAMic(bool enabled, bool hasMic, bool visible)
+    {
+        var state = TrayLogic.Mic(enabled, hasMic ? Mic() : null);
+
+        Assert.Equal(visible, state.Visible);
+        if (!hasMic) Assert.Equal("", state.Tooltip);
+    }
+
+    [Fact]
+    public void TooltipIsCutToWhatWindowsAccepts()
+    {
+        var longName = new string('Я', 300);
+
+        var sound = TrayLogic.Sound(true, Output(0.5f) with { Name = longName });
+        var mic = TrayLogic.Mic(true, Mic(name: longName));
+
+        Assert.Equal(127, sound.Tooltip.Length);
+        Assert.Equal(127, mic.Tooltip.Length);
+        Assert.Equal("коротка підказка", TrayLogic.FitTooltip("коротка підказка"));
+        Assert.Equal(127, TrayLogic.FitTooltip(new string('x', 127)).Length);
+        Assert.Equal(127, TrayLogic.FitTooltip(new string('x', 128)).Length);
+    }
+
+    [Fact]
+    public void RedrawOnlyWhenGlyphThemeOrSizeChange()
+    {
+        var drawn = new TrayLook(TrayGlyph.Volume2, Light: false, Size: 16);
+
+        Assert.True(TrayLogic.NeedsRedraw(null, drawn));
+        Assert.False(TrayLogic.NeedsRedraw(drawn, drawn with { }));
+        Assert.True(TrayLogic.NeedsRedraw(drawn, drawn with { Glyph = TrayGlyph.Volume3 }));
+        Assert.True(TrayLogic.NeedsRedraw(drawn, drawn with { Light = true }));
+        Assert.True(TrayLogic.NeedsRedraw(drawn, drawn with { Size = 24 }));
+    }
+
+    [Fact]
+    public void SmallVolumeChangeKeepsTheSameLookButChangesTheTooltip()
+    {
+        var before = TrayLogic.Sound(true, Output(0.45f));
+        var after = TrayLogic.Sound(true, Output(0.46f));
+
+        Assert.Equal(before.Glyph, after.Glyph);
+        Assert.False(TrayLogic.NeedsRedraw(new TrayLook(before.Glyph, false, 16), new TrayLook(after.Glyph, false, 16)));
+        Assert.True(TrayLogic.NeedsTooltip(before.Tooltip, after.Tooltip));
+        Assert.False(TrayLogic.NeedsTooltip(after.Tooltip, after.Tooltip));
+        Assert.True(TrayLogic.NeedsTooltip(null, after.Tooltip));
+    }
+
+    [Fact]
+    public void FailingHandlerIsReportedNotThrown()
+    {
+        var shell = new FakeShell();
+        var failure = new InvalidOperationException("зламалось");
+
+        TrayLogic.RunGuarded(shell, () => throw failure);
+
+        var error = Assert.Single(shell.Errors);
+        Assert.Equal(Strings.OsdCommandFailed, error.Message);
+        Assert.Same(failure, error.Exception);
+    }
+
+    [Fact]
+    public void WorkingHandlerRunsAndReportsNothing()
+    {
+        var shell = new FakeShell();
+        var calls = 0;
+
+        TrayLogic.RunGuarded(shell, () => calls++);
+
+        Assert.Equal(1, calls);
+        Assert.Empty(shell.Errors);
+    }
+
+    [Fact]
+    public void FailingReportDoesNotEscapeEither()
+    {
+        var shell = new ThrowingShell();
+
+        TrayLogic.RunGuarded(shell, () => throw new InvalidOperationException("перша"));
+    }
+
+    private sealed class ThrowingShell : IAudioShell
+    {
+        public void OpenSoundSettings() { }
+
+        public void OpenInputProperties() { }
+
+        public void OpenOutputProperties() { }
+
+        public void OpenAppVolumeSettings() { }
+
+        public void OpenTaskbarSettings() { }
+
+        public void ReportError(string userMessage, Exception? exception) => throw new InvalidOperationException("друга");
     }
 }

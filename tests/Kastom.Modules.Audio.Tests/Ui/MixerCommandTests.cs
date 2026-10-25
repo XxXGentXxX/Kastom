@@ -144,11 +144,11 @@ public sealed class MixerCommandTests
     }
 
     [Fact]
-    public void WheelOverSliderStepsVolumeAndIsHandled()
+    public void WheelOverSliderInFlyoutStepsVolumeAndIsHandled()
     {
         Sta.Run(() =>
         {
-            var f = MixerFixture.Create();
+            var f = MixerFixture.Create(MixerMode.Flyout);
             var slider = f.Output(DemoIds.Headphones).Row.Slider;
 
             var up = slider.Wheel(120);
@@ -163,6 +163,49 @@ public sealed class MixerCommandTests
             Assert.Equal(45, slider.Value);
         });
     }
+
+    [Theory]
+    [InlineData(MixerMode.Flyout)]
+    [InlineData(MixerMode.Widget)]
+    public void WheelOverSliderOutsideThePageAlwaysStepsVolume(MixerMode mode)
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create(mode);
+            var slider = mode == MixerMode.Widget ? f.View.WidgetVolume!.Slider : f.Output(DemoIds.Headphones).Row.Slider;
+            Assert.False(slider.IsKeyboardFocusWithin);
+
+            var args = slider.Wheel(120);
+
+            Assert.True(args.Handled);
+            Assert.Equal(46, slider.Value);
+        });
+    }
+
+    [Fact]
+    public void WheelOverSliderOnThePageScrollsInsteadUnlessTheSliderHasFocus()
+    {
+        Sta.Run(() =>
+        {
+            var f = MixerFixture.Create();
+            var slider = f.Output(DemoIds.Headphones).Row.Slider;
+            Assert.False(slider.IsKeyboardFocusWithin);
+
+            var args = slider.Wheel(120);
+
+            Assert.False(args.Handled);
+            Assert.Equal(45, slider.Value);
+            Assert.DoesNotContain(f.Backend.Commands, c => c.StartsWith("SetDeviceVolume", StringComparison.Ordinal));
+        });
+    }
+
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, true)]
+    public void WheelAppliesOnlyWithFocusWhenThePageScrolls(bool needsFocus, bool hasFocus, bool expected) =>
+        Assert.Equal(expected, VolumeSlider.WheelApplies(needsFocus, hasFocus));
 
     [Fact]
     public void MakeDefaultUsesRolesFromOptions()

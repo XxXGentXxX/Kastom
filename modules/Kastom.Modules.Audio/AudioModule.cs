@@ -24,6 +24,9 @@ public sealed class AudioModule : IKastomModule
     private MixerFlyout? _flyout;
     private bool _fake;
 
+    // Пишеться з фонового потоку (Start/Stop), читається в потоці інтерфейсу (дії, клік по значку).
+    private volatile bool _running;
+
     /// <summary>Спільний стан модуля; для тестів.</summary>
     internal MixerHost Host => _host!;
 
@@ -67,17 +70,24 @@ public sealed class AudioModule : IKastomModule
         var context = _context!;
         var host = _host!;
 
-        await host.Backend.StartAsync(cancellationToken).ConfigureAwait(false);
-
-        // Фальшивий звук — для знімків і пісочниці: справжні значки біля годинника з вигаданим станом лише плутали б.
-        if (!_fake)
+        try
         {
-            await context.Ui.InvokeAsync(() =>
+            await host.Backend.StartAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            _running = true;
+
+            // Фальшивий звук — для знімків і пісочниці: справжні значки біля годинника з вигаданим станом лише плутали б.
+            if (!_fake)
             {
-                _tray?.Dispose();
-                _tray = new AudioTrayIcons(host, ToggleMixer, ShowMixer);
-                _tray.ApplySettings();
-            }).ConfigureAwait(false);
+                await context.Ui.InvokeAsync(ShowTray).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+        catch
+        {
+            // Лаунчер кличе StopAsync лише після успішного старту: тайм-аут чи збій тут прибираємо самі.
+            await AbortStartAsync(context, host).ConfigureAwait(false);
+            throw;
         }
 
         context.Log.Info("Звук: модуль запущено.");
@@ -88,12 +98,52 @@ public sealed class AudioModule : IKastomModule
         var context = _context!;
         var host = _host!;
 
+        _running = false;
+        await ReleaseUiAsync(context).ConfigureAwait(false);
+
+        await host.Backend.StopAsync().ConfigureAwait(false);
+        context.Log.Info("Звук: модуль зупинено.");
+    }
+
+    // Лише в потоці інтерфейсу. Значки створюються один раз і живуть далі (див. AudioTrayIcons); повторний запуск їх лише показує.
+    private void ShowTray()
+    {
+        try
+        {
+            _tray ??= new AudioTrayIcons(_host!, ToggleMixer, ShowMixer);
+            _tray.Activate();
+        }
+        catch (Exception ex)
+        {
+            // Без значків мікшер і гарячі клавіші працюють, тож не валимо через них увесь модуль.
+            _context!.Log.Error("Звук: не вдалося створити значки в треї, модуль працює без них.", ex);
+            _tray?.Deactivate();
+        }
+    }
+
+    private async Task AbortStartAsync(IModuleContext context, MixerHost host)
+    {
+        _running = false;
+        await ReleaseUiAsync(context).ConfigureAwait(false);
+
+        try
+        {
+            await host.Backend.StopAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Первісну причину збою не затуляємо.
+            context.Log.Warn($"Звук: не вдалося зупинити звук після збою запуску: {ex.Message}");
+        }
+    }
+
+    private async Task ReleaseUiAsync(IModuleContext context)
+    {
         try
         {
             await context.Ui.InvokeAsync(() =>
             {
-                _tray?.Dispose();
-                _tray = null;
+                _tray?.Deactivate();
                 _flyout?.Close();
                 _flyout = null;
             }).ConfigureAwait(false);
@@ -103,9 +153,6 @@ public sealed class AudioModule : IKastomModule
             // Лаунчер міг уже закрити потік інтерфейсу; бекенд усе одно треба зупинити.
             context.Log.Warn($"Звук: не вдалося прибрати значки: {ex.Message}");
         }
-
-        await host.Backend.StopAsync().ConfigureAwait(false);
-        context.Log.Info("Звук: модуль зупинено.");
     }
 
     private void OnOptionChanged(object? sender, string key)
@@ -127,11 +174,21 @@ public sealed class AudioModule : IKastomModule
     }
 
     // Лише в потоці інтерфейсу: панель — вікно WPF, одне на запуск модуля.
-    private MixerFlyout Flyout() => _flyout ??= new MixerFlyout(_host!);
+    internal MixerFlyout Flyout() => _flyout ??= new MixerFlyout(_host!);
 
-    private void ToggleMixer() => Flyout().Toggle(CursorPosition());
+    /// <summary>Панель, якщо вона вже створена; для тестів.</summary>
+    internal MixerFlyout? CurrentFlyout => _flyout;
 
-    private void ShowMixer() => Flyout().ShowNear(CursorPosition());
+    // Дія з черги може дійти вже після StopAsync: без цього вона відкрила б нову панель при зупиненому звуку.
+    private void ToggleMixer()
+    {
+        if (_running) Flyout().Toggle(CursorPosition());
+    }
+
+    private void ShowMixer()
+    {
+        if (_running) Flyout().ShowNear(CursorPosition());
+    }
 
     private static Point CursorPosition()
     {
