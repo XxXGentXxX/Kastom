@@ -248,8 +248,9 @@ public sealed class ModuleManager(
         {
             if (state.State.Modules.TryGetValue(id, out var current))
             {
-                if (current.Version != newVersion) current.PreviousVersion = current.Version;
-                if (dropPrevious) current.PreviousVersion = null;
+                // Версія без файлів не може бути попередньою: відкат на неї неможливий.
+                if (current.Version != newVersion && !runtime.Missing) current.PreviousVersion = current.Version;
+                if (dropPrevious || (runtime.Missing && current.PreviousVersion == current.Version)) current.PreviousVersion = null;
                 current.Version = newVersion;
 
                 // Вимкнений користувачем модуль оновлення не вмикає.
@@ -558,6 +559,8 @@ public sealed class ModuleManager(
         foreach (var id in ids)
         {
             if (FindInstalled(id) is not { } installed || ReadManifest(id, installed.Version) is not null) continue;
+            // Файл є, але не прочитався (пошкоджений чи заблокований): це не «зникли», звичайний старт покаже помилку.
+            if (File.Exists(Path.Combine(paths.ModuleInstallDirectory(id, installed.Version), ModuleManifest.FileName))) continue;
             missing.Add(id);
             GetRuntime(id).Missing = true;
             _log.Warn($"Файлів модуля '{id}' {installed.Version} немає (лаунчер видаляли?); спробую відновити з каталогу.");
@@ -603,6 +606,13 @@ public sealed class ModuleManager(
             }
 
             var entry = known.Modules.FirstOrDefault(e => e.Id == id);
+            if (entry is null && Directory.Exists(Path.Combine(paths.ModulesRoot, id)))
+            {
+                // Тека модуля є (наприклад, інша версія): запис не прибираємо, щоб не лишити її сиротою.
+                runtime.Error = "модуля немає в каталозі";
+                continue;
+            }
+
             if (entry is null)
             {
                 Commit(() => state.State.Modules.Remove(id));

@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Kastom.Core.Tests.Runtime;
 
 /// <summary>
@@ -119,6 +121,67 @@ public sealed class ModuleRepairTests : IDisposable
         Assert.True(info.IsMissing);
         Assert.True(info.IsEnabled);
         Assert.Contains("1.0.0", info.Error);
+        Assert.Empty(_f.Installer.Installed);
+    }
+
+    [Fact]
+    public async Task ManualReinstall_OfMissingModule_WithNewerCatalog_DoesNotOfferRollbackToMissingVersion()
+    {
+        _f.Register("demo", "1.0.0", enabled: true);
+        _f.Catalog.Current = null;
+        await _f.Manager.StartAsync(CancellationToken.None);
+
+        CatalogWith("demo", "1.1.0");
+        var reinstall = await _f.Manager.InstallAsync("demo");
+
+        Assert.True(reinstall.Success, reinstall.Error);
+        var info = _f.Info("demo");
+        Assert.Equal("1.1.0", info.InstalledVersion);
+        Assert.Null(info.PreviousVersion);
+        Assert.True(info.IsRunning);
+    }
+
+    [Fact]
+    public async Task MissingModule_NotInCatalog_ButFolderExists_KeepsRecord()
+    {
+        _f.Register("demo", "1.0.0", enabled: true);
+        Directory.CreateDirectory(_f.Paths.ModuleInstallDirectory("demo", "0.9.0"));
+        CatalogWith("other", "1.0.0");
+
+        await _f.Manager.StartAsync(CancellationToken.None);
+
+        Assert.True(_f.Store.State.Modules.ContainsKey("demo"));
+        Assert.True(_f.Info("demo").IsMissing);
+        Assert.Equal("модуля немає в каталозі", _f.Info("demo").Error);
+    }
+
+    [Fact]
+    public async Task MissingModule_InstallFails_StaysMissingAndEnabled()
+    {
+        _f.Register("demo", "1.0.0", enabled: true);
+        CatalogWith("demo", "1.0.0");
+        _f.Installer.OnInstall = () => throw new IOException("диск переповнено");
+
+        await _f.Manager.StartAsync(CancellationToken.None);
+
+        var info = _f.Info("demo");
+        Assert.True(info.IsMissing);
+        Assert.False(info.IsRepairing);
+        Assert.True(info.IsEnabled);
+        Assert.Contains("диск переповнено", info.Error);
+    }
+
+    [Fact]
+    public async Task MissingModule_IncompatibleCatalogVersion_StaysMissing()
+    {
+        _f.Register("demo", "1.0.0", enabled: true);
+        CatalogWith("demo", "1.0.0");
+        _f.Manager.CompatibilityCheck = (_, _, _) => new Kastom.Core.Installation.CompatibilityResult(false, "Потрібен новіший лаунчер.");
+
+        await _f.Manager.StartAsync(CancellationToken.None);
+
+        Assert.True(_f.Info("demo").IsMissing);
+        Assert.Equal("Потрібен новіший лаунчер.", _f.Info("demo").Error);
         Assert.Empty(_f.Installer.Installed);
     }
 
