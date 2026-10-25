@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+artifacts/
+Releases/
+TestResults/
+# Секретні ключі ніколи не лежать у репозиторії.
+*.pem
+*.key

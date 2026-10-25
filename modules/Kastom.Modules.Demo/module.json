@@ -1,0 +1,11 @@
+{
+  "id": "demo",
+  "name": "Демо-модуль",
+  "description": "Перевірка контракту модулів: налаштування, дія з клавішею, віджет.",
+  "version": "1.0.0",
+  "contractVersion": 1,
+  "entryAssembly": "Kastom.Modules.Demo.dll",
+  "entryType": "Kastom.Modules.Demo.DemoModule",
+  "minLauncherVersion": "0.1.0",
+  "author": "Kastom"
+}

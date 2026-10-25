@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="OpenLauncher" xml:space="preserve">
+    <value>Відкрити Kastom</value>
+  </data>
+  <data name="SettingsSaveErrorFormat" xml:space="preserve">
+    <value>Не вдалося зберегти: {0}</value>
+  </data>
+  <data name="ActionFailedFormat" xml:space="preserve">
+    <value>Дію не виконано: {0}</value>
+  </data>
+  <data name="ModuleHasNoSettings" xml:space="preserve">
+    <value>Модуль не має налаштувань</value>
+  </data>
+  <data name="AggregateTitle" xml:space="preserve">
+    <value>Налаштування модулів</value>
+  </data>
+  <data name="ModulePageLink" xml:space="preserve">
+    <value>Сторінка модуля</value>
+  </data>
+  <data name="AggregateEmpty" xml:space="preserve">
+    <value>Увімкнених модулів немає. Встановіть модуль у вкладці «Модулі».</value>
+  </data>
+  <data name="VersionFormat" xml:space="preserve">
+    <value>Версія {0}</value>
+  </data>
+  <data name="SettingsSection" xml:space="preserve">
+    <value>Налаштування</value>
+  </data>
+  <data name="WidgetsSection" xml:space="preserve">
+    <value>Віджети</value>
+  </data>
+  <data name="ActionsSection" xml:space="preserve">
+    <value>Дії</value>
+  </data>
+  <data name="WidgetOnDesktop" xml:space="preserve">
+    <value>На робочому столі</value>
+  </data>
+  <data name="RunAction" xml:space="preserve">
+    <value>Виконати</value>
+  </data>
+  <data name="ModuleNotFound" xml:space="preserve">
+    <value>Модуль не знайдено.</value>
+  </data>
+  <data name="ModuleNotInstalled" xml:space="preserve">
+    <value>Модуль не встановлено.</value>
+  </data>
+  <data name="ModuleDisabled" xml:space="preserve">
+    <value>Модуль вимкнено. Увімкніть його у вкладці «Модулі», щоб бачити налаштування, віджети й дії.</value>
+  </data>
+  <data name="ModuleNotRunning" xml:space="preserve">
+    <value>Модуль увімкнено, але він не запущений.</value>
+  </data>
+  <data name="ModuleErrorFormat" xml:space="preserve">
+    <value>Помилка модуля: {0}</value>
+  </data>
+  <data name="ModuleNoWidgets" xml:space="preserve">
+    <value>Модуль не має віджетів</value>
+  </data>
+  <data name="ModuleNoActions" xml:space="preserve">
+    <value>Модуль не має дій</value>
+  </data>
+  <data name="CustomPageErrorFormat" xml:space="preserve">
+    <value>Не вдалося показати сторінку модуля: {0}</value>
+  </data>
+  <data name="WidgetContentErrorFormat" xml:space="preserve">
+    <value>Не вдалося показати віджет: {0}</value>
+  </data>
+  <data name="WidgetClose" xml:space="preserve">
+    <value>Закрити</value>
+  </data>
+  <data name="LauncherWidgetTitle" xml:space="preserve">
+    <value>Kastom — модулі</value>
+  </data>
+  <data name="QuickEmpty" xml:space="preserve">
+    <value>Модулі ще не встановлено</value>
+  </data>
+  <data name="QuickSettings" xml:space="preserve">
+    <value>Налаштування</value>
+  </data>
+  <data name="QuickQuickSettings" xml:space="preserve">
+    <value>Швидкі налаштування</value>
+  </data>
+  <data name="QuickStatusRunning" xml:space="preserve">
+    <value>Працює</value>
+  </data>
+  <data name="QuickStatusDisabled" xml:space="preserve">
+    <value>Вимкнено</value>
+  </data>
+  <data name="QuickStatusNotRunning" xml:space="preserve">
+    <value>Увімкнено, не запущено</value>
+  </data>
+  <data name="QuickToggleFailedFormat" xml:space="preserve">
+    <value>Не вдалося змінити стан: {0}</value>
+  </data>
+  <data name="QuickRestartNote" xml:space="preserve">
+    <value>Зміна набуде чинності після перезапуску Kastom</value>
+  </data>
+</root>

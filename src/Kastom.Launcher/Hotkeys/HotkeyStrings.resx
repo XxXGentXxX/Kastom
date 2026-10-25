@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PageTitle" xml:space="preserve">
+    <value>Гарячі клавіші</value>
+  </data>
+  <data name="EnabledToggle" xml:space="preserve">
+    <value>Гарячі клавіші увімкнені</value>
+  </data>
+  <data name="LauncherSection" xml:space="preserve">
+    <value>Лаунчер</value>
+  </data>
+  <data name="StatusActive" xml:space="preserve">
+    <value>Активне</value>
+  </data>
+  <data name="StatusConflict" xml:space="preserve">
+    <value>Конфлікт з «{0}»</value>
+  </data>
+  <data name="StatusConflictUnknown" xml:space="preserve">
+    <value>Конфлікт з іншою дією</value>
+  </data>
+  <data name="StatusTakenBySystem" xml:space="preserve">
+    <value>Зайняте іншою програмою</value>
+  </data>
+  <data name="StatusUnassigned" xml:space="preserve">
+    <value>Не призначено</value>
+  </data>
+  <data name="StatusDefaultTaken" xml:space="preserve">
+    <value>Типове поєднання вже зайняте дією «{0}»</value>
+  </data>
+  <data name="StatusDisabled" xml:space="preserve">
+    <value>Вимкнено</value>
+  </data>
+  <data name="ChangeButton" xml:space="preserve">
+    <value>Змінити</value>
+  </data>
+  <data name="CancelButton" xml:space="preserve">
+    <value>Скасувати</value>
+  </data>
+  <data name="ResetButton" xml:space="preserve">
+    <value>Скинути</value>
+  </data>
+  <data name="CapturePrompt" xml:space="preserve">
+    <value>Натисніть поєднання…</value>
+  </data>
+  <data name="CaptureHint" xml:space="preserve">
+    <value>Esc — скасувати, Backspace або Delete — прибрати поєднання.</value>
+  </data>
+  <data name="KeyboardHint" xml:space="preserve">
+    <value>Клацніть клавішу, щоб побачити дії, які її використовують.</value>
+  </data>
+  <data name="FilterInfo" xml:space="preserve">
+    <value>Дії з клавішею {0}</value>
+  </data>
+  <data name="FilterClear" xml:space="preserve">
+    <value>Показати всі</value>
+  </data>
+  <data name="NoBindingsForKey" xml:space="preserve">
+    <value>Для цієї клавіші поєднань немає.</value>
+  </data>
+  <data name="NoActions" xml:space="preserve">
+    <value>Дій поки немає: їх додають увімкнені модулі.</value>
+  </data>
+  <data name="TooltipLine" xml:space="preserve">
+    <value>{0} — {1} ({2})</value>
+  </data>
+</root>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Kastom.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kastom.Sdk\Kastom.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kastom.Core.Tests" />
+    <Using Include="System.Net.Http" />
+    <!-- WPF прибирає System.IO з неявних using через System.Windows.Shapes.Path; у ядрі фігур немає. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+</Project>

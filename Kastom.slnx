@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/modules/">
+    <Project Path="modules/Kastom.Modules.Demo/Kastom.Modules.Demo.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Kastom.Core/Kastom.Core.csproj" />
+    <Project Path="src/Kastom.Launcher/Kastom.Launcher.csproj" />
+    <Project Path="src/Kastom.Sdk/Kastom.Sdk.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kastom.Core.Tests/Kastom.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Kastom.CatalogTool/Kastom.CatalogTool.csproj" />
+  </Folder>
+</Solution>

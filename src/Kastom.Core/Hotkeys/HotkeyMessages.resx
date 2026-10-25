@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="UnknownAction" xml:space="preserve">
+    <value>Невідома дія.</value>
+  </data>
+  <data name="InvalidGesture" xml:space="preserve">
+    <value>Це поєднання не можна призначити.</value>
+  </data>
+  <data name="NeedModifier" xml:space="preserve">
+    <value>Потрібна хоча б одна клавіша-модифікатор: Ctrl, Alt, Shift або Win.</value>
+  </data>
+  <data name="ConflictWithAction" xml:space="preserve">
+    <value>Це поєднання вже має дія «{0}» (модуль {1}).</value>
+  </data>
+  <data name="TakenBySystem" xml:space="preserve">
+    <value>Поєднання вже зайняте Windows або іншою програмою.</value>
+  </data>
+  <data name="ResetNoDefault" xml:space="preserve">
+    <value>У цієї дії немає поєднання за замовчуванням.</value>
+  </data>
+  <data name="ResetNotApplied" xml:space="preserve">
+    <value>Типове поєднання {0} не застосовано: воно не підходить або вже використане.</value>
+  </data>
+  <data name="ResetConflict" xml:space="preserve">
+    <value>Типове поєднання {0} вже зайняте дією «{1}» (модуль {2}).</value>
+  </data>
+  <data name="LogSaveFailed" xml:space="preserve">
+    <value>Не вдалося записати стан гарячих клавіш; зміну скасовано.</value>
+  </data>
+  <data name="ResetTakenBySystem" xml:space="preserve">
+    <value>Типове поєднання {0} зайняте Windows або іншою програмою.</value>
+  </data>
+  <data name="LogUnusableStored" xml:space="preserve">
+    <value>Збережене поєднання «{0}» для дії {1} не підходить, його проігноровано.</value>
+  </data>
+  <data name="LogExecuteFailed" xml:space="preserve">
+    <value>Не вдалося виконати дію {0} за гарячою клавішею.</value>
+  </data>
+</root>

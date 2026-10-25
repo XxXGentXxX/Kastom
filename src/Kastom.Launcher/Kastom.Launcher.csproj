@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Версія Windows у TFM відкриває WinRT API (TaskbarManager для закріплення на панелі задач). -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms лише заради NotifyIcon (значок в області сповіщень). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>Kastom</AssemblyName>
+    <RootNamespace>Kastom.Launcher</RootNamespace>
+    <!-- Тексти в *.resx без суфікса мови — українські; англійські з'являться як *.en.resx. -->
+    <NeutralLanguage>uk-UA</NeutralLanguage>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Власна точка входу Program.Main: App.xaml лише описує ресурси, Main генерувати не треба. -->
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <StartupObject>Kastom.Launcher.Program</StartupObject>
+    <!-- DPI задано в app.manifest (PerMonitorV2), WinForms лише для значка в треї. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kastom.Sdk\Kastom.Sdk.csproj" />
+    <ProjectReference Include="..\Kastom.Core\Kastom.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+
+</Project>

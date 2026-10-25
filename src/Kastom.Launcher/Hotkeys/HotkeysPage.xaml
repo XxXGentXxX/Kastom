@@ -1,0 +1,25 @@
+<UserControl x:Class="Kastom.Launcher.Hotkeys.HotkeysPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:hk="clr-namespace:Kastom.Launcher.Hotkeys"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" MaxWidth="1100" HorizontalAlignment="Left">
+            <TextBlock Text="{x:Static hk:HotkeyStrings.PageTitle}" FontSize="24" FontWeight="SemiBold" />
+            <CheckBox x:Name="EnabledCheck"
+                      Content="{x:Static hk:HotkeyStrings.EnabledToggle}"
+                      Margin="0,16,0,0"
+                      Checked="OnEnabledToggled"
+                      Unchecked="OnEnabledToggled" />
+            <hk:KeyboardView x:Name="KeyMap" Margin="0,16,0,0" />
+            <TextBlock Text="{x:Static hk:HotkeyStrings.KeyboardHint}" Opacity="0.7" Margin="0,6,0,0" />
+            <StackPanel x:Name="FilterBar" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Collapsed">
+                <TextBlock x:Name="FilterText" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <Button Content="{x:Static hk:HotkeyStrings.FilterClear}" Margin="12,0,0,0" Click="OnFilterClear" />
+            </StackPanel>
+            <TextBlock x:Name="EmptyText" Opacity="0.7" Margin="0,16,0,0" Visibility="Collapsed" TextWrapping="Wrap" />
+            <StackPanel x:Name="Sections" Margin="0,8,0,0" Grid.IsSharedSizeScope="True" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

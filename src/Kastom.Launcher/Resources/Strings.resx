@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppName" xml:space="preserve">
+    <value>Kastom</value>
+  </data>
+  <data name="MainWindowTitle" xml:space="preserve">
+    <value>Kastom</value>
+  </data>
+  <data name="TrayTooltip" xml:space="preserve">
+    <value>Kastom</value>
+  </data>
+  <data name="TrayOpen" xml:space="preserve">
+    <value>Відкрити Kastom</value>
+  </data>
+  <data name="TrayQuickPanel" xml:space="preserve">
+    <value>Швидка панель</value>
+  </data>
+  <data name="TrayWidget" xml:space="preserve">
+    <value>Віджет лаунчера на робочому столі</value>
+  </data>
+  <data name="TrayCheckUpdates" xml:space="preserve">
+    <value>Перевірити оновлення</value>
+  </data>
+  <data name="TrayExit" xml:space="preserve">
+    <value>Вихід</value>
+  </data>
+  <data name="BalloonUpdatesTitle" xml:space="preserve">
+    <value>Доступні оновлення</value>
+  </data>
+  <data name="BalloonLauncherVersion" xml:space="preserve">
+    <value>Лаунчер {0}</value>
+  </data>
+  <data name="BalloonUpdatesText" xml:space="preserve">
+    <value>{0}. Натисніть, щоб відкрити Kastom.</value>
+  </data>
+  <data name="ActionOpenTitle" xml:space="preserve">
+    <value>Відкрити Kastom</value>
+  </data>
+  <data name="ActionQuickPanelTitle" xml:space="preserve">
+    <value>Швидка панель</value>
+  </data>
+  <data name="ActionToggleWidgetTitle" xml:space="preserve">
+    <value>Показати або сховати віджет лаунчера</value>
+  </data>
+  <data name="ActionCheckUpdatesTitle" xml:space="preserve">
+    <value>Перевірити оновлення</value>
+  </data>
+  <data name="UpdateCheckDone" xml:space="preserve">
+    <value>Перевірку оновлень завершено</value>
+  </data>
+  <data name="UnhandledError" xml:space="preserve">
+    <value>Сталася помилка: {0}</value>
+  </data>
+  <data name="StartupProblems" xml:space="preserve">
+    <value>Не все запустилося: {0}. Подробиці — у журналі.</value>
+  </data>
+  <data name="StartupFatal" xml:space="preserve">
+    <value>Kastom не зміг запуститися: {0}</value>
+  </data>
+  <data name="QuickPanelFailed" xml:space="preserve">
+    <value>Не вдалося відкрити швидку панель: {0}</value>
+  </data>
+  <data name="RestartFailed" xml:space="preserve">
+    <value>Не вдалося перезапустити лаунчер: {0}</value>
+  </data>
+  <data name="RenderFailed" xml:space="preserve">
+    <value>Не вдалося зберегти знімок «{0}»: {1}</value>
+  </data>
+  <data name="NavModules" xml:space="preserve">
+    <value>Модулі</value>
+  </data>
+  <data name="NavModuleSettings" xml:space="preserve">
+    <value>Налаштування модулів</value>
+  </data>
+  <data name="NavHotkeys" xml:space="preserve">
+    <value>Гарячі клавіші</value>
+  </data>
+  <data name="NavLauncher" xml:space="preserve">
+    <value>Лаунчер</value>
+  </data>
+  <data name="NavEnabledModules" xml:space="preserve">
+    <value>Увімкнені модулі</value>
+  </data>
+  <data name="PageUnavailable" xml:space="preserve">
+    <value>Сторінка недоступна: {0}</value>
+  </data>
+  <data name="CheckUpdates" xml:space="preserve">
+    <value>Перевірити оновлення</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>Перевіряємо…</value>
+  </data>
+  <data name="LastCheckNever" xml:space="preserve">
+    <value>Ще не перевіряли</value>
+  </data>
+  <data name="LastCheckFormat" xml:space="preserve">
+    <value>Остання перевірка: {0}</value>
+  </data>
+  <data name="CatalogCount" xml:space="preserve">
+    <value>У каталозі модулів: {0}</value>
+  </data>
+  <data name="CatalogNotLoaded" xml:space="preserve">
+    <value>Каталог ще не завантажено</value>
+  </data>
+  <data name="CatalogFailed" xml:space="preserve">
+    <value>Каталог недоступний: {0}</value>
+  </data>
+  <data name="CatalogInvalidSignature" xml:space="preserve">
+    <value>Підпис каталогу не збігся, каталог не використано</value>
+  </data>
+  <data name="RestartBanner" xml:space="preserve">
+    <value>Щоб зміни набули чинності, перезапустіть лаунчер</value>
+  </data>
+  <data name="Restart" xml:space="preserve">
+    <value>Перезапустити</value>
+  </data>
+  <data name="ModulesLoadError" xml:space="preserve">
+    <value>Не вдалося отримати список модулів: {0}</value>
+  </data>
+  <data name="NoModules" xml:space="preserve">
+    <value>Модулів поки немає. Натисніть «Перевірити оновлення», щоб прочитати каталог.</value>
+  </data>
+  <data name="StatusEnabled" xml:space="preserve">
+    <value>Увімкнено</value>
+  </data>
+  <data name="StatusDisabled" xml:space="preserve">
+    <value>Вимкнено</value>
+  </data>
+  <data name="StatusNotInstalled" xml:space="preserve">
+    <value>Не встановлено</value>
+  </data>
+  <data name="StatusUpdate" xml:space="preserve">
+    <value>Є оновлення</value>
+  </data>
+  <data name="StatusIncompatible" xml:space="preserve">
+    <value>Несумісний: {0}</value>
+  </data>
+  <data name="IncompatibleReason" xml:space="preserve">
+    <value>потрібна інша версія лаунчера або модуля</value>
+  </data>
+  <data name="StatusError" xml:space="preserve">
+    <value>Помилка: {0}</value>
+  </data>
+  <data name="StatusRestart" xml:space="preserve">
+    <value>Потрібен перезапуск</value>
+  </data>
+  <data name="VersionsInstalled" xml:space="preserve">
+    <value>Встановлено {0}</value>
+  </data>
+  <data name="VersionsAvailable" xml:space="preserve">
+    <value>Доступно {0}</value>
+  </data>
+  <data name="VersionsSeparator" xml:space="preserve">
+    <value> · </value>
+  </data>
+  <data name="VersionsIncompatibleNote" xml:space="preserve">
+    <value> (несумісна з цим лаунчером)</value>
+  </data>
+  <data name="Install" xml:space="preserve">
+    <value>Встановити</value>
+  </data>
+  <data name="Update" xml:space="preserve">
+    <value>Оновити</value>
+  </data>
+  <data name="Enable" xml:space="preserve">
+    <value>Увімкнути</value>
+  </data>
+  <data name="Disable" xml:space="preserve">
+    <value>Вимкнути</value>
+  </data>
+  <data name="Rollback" xml:space="preserve">
+    <value>Відкотити до {0}</value>
+  </data>
+  <data name="Uninstall" xml:space="preserve">
+    <value>Видалити</value>
+  </data>
+  <data name="ConfirmTitle" xml:space="preserve">
+    <value>Підтвердження</value>
+  </data>
+  <data name="UninstallConfirm" xml:space="preserve">
+    <value>Видалити модуль «{0}»?</value>
+  </data>
+  <data name="OperationFailed" xml:space="preserve">
+    <value>Не вдалося: {0}</value>
+  </data>
+  <data name="OperationNeedsRestart" xml:space="preserve">
+    <value>Зміна набуде чинності після перезапуску лаунчера.</value>
+  </data>
+  <data name="SettingsVersion" xml:space="preserve">
+    <value>Версія лаунчера: {0}</value>
+  </data>
+  <data name="SettingsStartupHeader" xml:space="preserve">
+    <value>Запуск</value>
+  </data>
+  <data name="SettingsAutostart" xml:space="preserve">
+    <value>Запускати разом з Windows</value>
+  </data>
+  <data name="AutostartFailed" xml:space="preserve">
+    <value>Не вдалося змінити автозапуск: {0}</value>
+  </data>
+  <data name="SettingsUpdatesHeader" xml:space="preserve">
+    <value>Оновлення модулів</value>
+  </data>
+  <data name="SettingsUpdateNotify" xml:space="preserve">
+    <value>Повідомляти</value>
+  </data>
+  <data name="SettingsUpdateAutomatic" xml:space="preserve">
+    <value>Ставити автоматично</value>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Перевірити оновлення зараз</value>
+  </data>
+  <data name="SettingsUpdateLauncher" xml:space="preserve">
+    <value>Оновити лаунчер до {0}</value>
+  </data>
+  <data name="SettingsUpdatingLauncher" xml:space="preserve">
+    <value>Оновлюємо лаунчер, він перезапуститься сам</value>
+  </data>
+  <data name="SettingsLauncherUpdateFailed" xml:space="preserve">
+    <value>Не вдалося оновити лаунчер: {0}</value>
+  </data>
+  <data name="SettingsTaskbarHeader" xml:space="preserve">
+    <value>Панель задач</value>
+  </data>
+  <data name="SettingsPin" xml:space="preserve">
+    <value>Закріпити на панелі задач</value>
+  </data>
+  <data name="SettingsPinNote" xml:space="preserve">
+    <value>Windows попросить підтвердження. Закріпити можна, лише коли в меню «Пуск» є ярлик Kastom; його створює інсталятор.</value>
+  </data>
+  <data name="PinDone" xml:space="preserve">
+    <value>Kastom закріплено на панелі задач</value>
+  </data>
+  <data name="PinNotDone" xml:space="preserve">
+    <value>Windows не закріпила Kastom</value>
+  </data>
+  <data name="PinFailed" xml:space="preserve">
+    <value>Не вдалося закріпити: {0}</value>
+  </data>
+  <data name="SettingsWidgetHeader" xml:space="preserve">
+    <value>Віджет</value>
+  </data>
+  <data name="SettingsWidget" xml:space="preserve">
+    <value>Віджет лаунчера на робочому столі</value>
+  </data>
+  <data name="SettingsLogsHeader" xml:space="preserve">
+    <value>Журнал</value>
+  </data>
+  <data name="SettingsOpenLogs" xml:space="preserve">
+    <value>Відкрити папку логів</value>
+  </data>
+  <data name="LogsOpenFailed" xml:space="preserve">
+    <value>Не вдалося відкрити папку логів: {0}</value>
+  </data>
+  <data name="SettingsCatalogHeader" xml:space="preserve">
+    <value>Джерело каталогу</value>
+  </data>
+  <data name="CatalogDevFolder" xml:space="preserve">
+    <value>Локальна папка розробника (--catalog-dir): {0}</value>
+  </data>
+  <data name="CatalogCurrentUrl" xml:space="preserve">
+    <value>Зараз: {0}</value>
+  </data>
+  <data name="CatalogUrlHint" xml:space="preserve">
+    <value>Власна адреса каталогу (https://); порожньо — типова</value>
+  </data>
+  <data name="CatalogApply" xml:space="preserve">
+    <value>Застосувати</value>
+  </data>
+  <data name="CatalogApplyNote" xml:space="preserve">
+    <value>Нова адреса діє після перезапуску лаунчера.</value>
+  </data>
+  <data name="CatalogInvalidUrl" xml:space="preserve">
+    <value>Потрібна повна адреса, що починається з https://</value>
+  </data>
+  <data name="BalloonModulesRestart" xml:space="preserve">
+    <value>Модулі оновлено — перезапустіть Kastom</value>
+  </data>
+  <data name="UpdaterNotInstalled" xml:space="preserve">
+    <value>Лаунчер запущено не з інсталятора: оновлювати нічого.</value>
+  </data>
+  <data name="UpdaterFileNameMismatch" xml:space="preserve">
+    <value>Ім'я пакета оновлення не збігається з підписаним каталогом. Оновлення скасовано.</value>
+  </data>
+  <data name="UpdaterHashMismatch" xml:space="preserve">
+    <value>Контрольна сума пакета оновлення не збігається з підписаною в каталозі. Оновлення скасовано, файл видалено.</value>
+  </data>
+</root>
