@@ -12,7 +12,7 @@ using Kastom.Sdk.Widgets;
 
 namespace Kastom.Modules.Audio;
 
-/// <summary>Модуль «Звук»: мікшер, значки в області сповіщень і дії для гарячих клавіш.</summary>
+/// <summary>Модуль «Звук»: мікшер, значок в області сповіщень і дії для гарячих клавіш.</summary>
 public sealed class AudioModule : IKastomModule
 {
     /// <summary>Якщо дорівнює "1", замість справжнього звуку береться фальшивий бекенд (знімки сторінок, тести).</summary>
@@ -39,7 +39,7 @@ public sealed class AudioModule : IKastomModule
         IAudioBackend backend;
         if (Environment.GetEnvironmentVariable(FakeEnvironmentVariable) == "1")
         {
-            context.Log.Info("Звук: фальшивий бекенд (KASTOM_AUDIO_FAKE=1), значків у треї немає.");
+            context.Log.Info("Звук: фальшивий бекенд (KASTOM_AUDIO_FAKE=1), значка в треї немає.");
             backend = FakeAudioBackend.CreateDemo();
             _fake = true;
         }
@@ -78,7 +78,7 @@ public sealed class AudioModule : IKastomModule
             cancellationToken.ThrowIfCancellationRequested();
             _running = true;
 
-            // Фальшивий звук — для знімків і пісочниці: справжні значки біля годинника з вигаданим станом лише плутали б.
+            // Фальшивий звук — для знімків і пісочниці: справжній значок біля годинника з вигаданим станом лише плутав би.
             if (!_fake)
             {
                 await context.Ui.InvokeAsync(ShowTray).ConfigureAwait(false);
@@ -109,7 +109,7 @@ public sealed class AudioModule : IKastomModule
         context.Log.Info("Звук: модуль зупинено.");
     }
 
-    // Лише в потоці інтерфейсу. Значки створюються один раз і живуть далі (див. AudioTrayIcons); повторний запуск їх лише показує.
+    // Лише в потоці інтерфейсу. Значок створюється один раз і живе далі (див. AudioTrayIcons); повторний запуск його лише показує.
     private void ShowTray()
     {
         try
@@ -119,8 +119,8 @@ public sealed class AudioModule : IKastomModule
         }
         catch (Exception ex)
         {
-            // Без значків мікшер і гарячі клавіші працюють, тож не валимо через них увесь модуль.
-            _context!.Log.Error("Звук: не вдалося створити значки в треї, модуль працює без них.", ex);
+            // Без значка мікшер і гарячі клавіші працюють, тож не валимо через нього увесь модуль.
+            _context!.Log.Error("Звук: не вдалося створити значок у треї, модуль працює без нього.", ex);
             _tray?.Deactivate();
         }
     }
@@ -155,13 +155,13 @@ public sealed class AudioModule : IKastomModule
         catch (Exception ex)
         {
             // Лаунчер міг уже закрити потік інтерфейсу; бекенд усе одно треба зупинити.
-            context.Log.Warn($"Звук: не вдалося прибрати значки: {ex.Message}");
+            context.Log.Warn($"Звук: не вдалося прибрати значок: {ex.Message}");
         }
     }
 
     private void OnOptionChanged(object? sender, string key)
     {
-        if (key is not (SettingKeys.TrayIcon or SettingKeys.MicTrayIcon)) return;
+        if (key is not (SettingKeys.TrayIcon or SettingKeys.TrayMicBadge)) return;
 
         // Налаштування можуть змінитися з будь-якого потоку, а значки живуть у потоці інтерфейсу.
         _ = _context!.Ui.InvokeAsync(() =>
@@ -172,7 +172,7 @@ public sealed class AudioModule : IKastomModule
             }
             catch (Exception ex)
             {
-                _context.Log.Error("Звук: не вдалося оновити значки.", ex);
+                _context.Log.Error("Звук: не вдалося оновити значок.", ex);
             }
         });
     }

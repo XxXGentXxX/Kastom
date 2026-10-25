@@ -290,7 +290,7 @@ public sealed class MixerMenuTests
             var chrome = f.App(DemoIds.Headphones, DemoIds.ChromeKey);
             var menu = chrome.BuildMenu();
 
-            Assert.Equal(["Вивід (експериментально)", "Призначити на дію"], menu.Headers());
+            Assert.Equal(["Відкрити програму", "Показати у Провіднику", "Вивід (експериментально)", "Призначити на дію"], menu.Headers());
             var output = menu.Item("Вивід (експериментально)");
             Assert.Equal(
                 ["Пристрій за замовчуванням", "Навушники (HyperX Cloud II)", "Динаміки (Realtek(R) Audio)", "LG ULTRAGEAR (NVIDIA High Definition Audio)"],
@@ -329,14 +329,14 @@ public sealed class MixerMenuTests
             var chrome = f.App(DemoIds.Headphones, DemoIds.ChromeKey);
 
             f.Settings.Set(SettingKeys.PerAppOutput, false);
-            Assert.Equal(["Призначити на дію"], chrome.BuildMenu().Headers());
+            Assert.Equal(["Відкрити програму", "Показати у Провіднику", "Призначити на дію"], chrome.BuildMenu().Headers());
 
             f.Settings.Set(SettingKeys.PerAppOutput, true);
             f.Backend.Capabilities = new BackendCapabilities(true, false, true);
-            Assert.Equal(["Призначити на дію"], chrome.BuildMenu().Headers());
+            Assert.Equal(["Відкрити програму", "Показати у Провіднику", "Призначити на дію"], chrome.BuildMenu().Headers());
 
             f.Backend.Capabilities = new BackendCapabilities(true, true, true);
-            Assert.Equal(2, chrome.BuildMenu().Items.Count);
+            Assert.Equal(4, chrome.BuildMenu().Headers().Count());
         });
     }
 
@@ -398,7 +398,7 @@ public sealed class MixerMenuTests
             var f = MixerFixture.Create();
             var menu = f.Input(DemoIds.HeadsetMic).BuildMicMenu()!;
 
-            Assert.Equal(["Призначити на дію"], menu.Headers());
+            Assert.Equal(["Призначити на дію", "Параметри звуку Windows"], menu.Headers());
             Assert.Equal(["Мікрофон 1 — не вибрано", "Мікрофон 2 — не вибрано"], menu.Item("Призначити на дію").Headers());
 
             menu.Item("Призначити на дію").Item("Мікрофон 1 — не вибрано").Press();
@@ -413,7 +413,7 @@ public sealed class MixerMenuTests
         {
             var f = MixerFixture.Create();
             Assert.Null(f.Output(DemoIds.Headphones).BuildMicMenu());
-            Assert.Null(f.Output(DemoIds.Headphones).More);
+            Assert.NotNull(f.Output(DemoIds.Headphones).More);
             Assert.NotNull(f.Input(DemoIds.HeadsetMic).More);
         });
     }

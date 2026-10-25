@@ -28,6 +28,15 @@ public interface IAudioShell
     /// <summary>Параметри → Персоналізація → Панель задач (значки, які видно біля годинника).</summary>
     void OpenTaskbarSettings();
 
+    /// <summary>
+    /// Показати програму, що звучить чи записує: головне вікно виводиться наперед, а якщо вікна немає (програма в треї) —
+    /// той самий exe запускається ще раз (програми з одним екземпляром на це показують своє вікно).
+    /// </summary>
+    void OpenApp(AudioApp app);
+
+    /// <summary>Показати exe програми в Провіднику (<c>explorer.exe /select</c>).</summary>
+    void RevealApp(AudioApp app);
+
     /// <summary>Записати помилку в лог і коротко сказати про неї користувачеві підказкою на екрані.</summary>
     void ReportError(string userMessage, Exception? exception);
 }

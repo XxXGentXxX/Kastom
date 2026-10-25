@@ -85,6 +85,9 @@ public sealed class MixerView : UserControl
         _compactButton.Click += (_, _) => ToggleCompact();
         UpdateCompactButton();
 
+        // Плитки лише в панелі біля годинника. Їх ставить у самий низ MixerFlyout, поза прокруткою.
+        if (mode == MixerMode.Flyout) Tiles = new QuickTiles(_ctx);
+
         if (mode == MixerMode.Widget)
         {
             _widgetVolume = new VolumeRow(_ctx, isMic: false) { Margin = new Thickness(0, 6, 0, 0) };
@@ -103,6 +106,12 @@ public sealed class MixerView : UserControl
     public MixerHost Host { get; }
 
     public MixerMode Mode { get; }
+
+    /// <summary>
+    /// Плитки «Звук» і «Мікрофони» внизу панелі біля годинника; в інших режимах — null. Елемент не входить у сам мікшер:
+    /// панель ставить його під прокруткою, щоб плитки були видні завжди.
+    /// </summary>
+    internal QuickTiles? Tiles { get; }
 
     /// <summary>Картки пристроїв виводу в порядку на екрані.</summary>
     internal IReadOnlyList<DeviceCard> OutputCards => _outputPanel.Children.OfType<DeviceCard>().ToList();
@@ -277,6 +286,12 @@ public sealed class MixerView : UserControl
 
         _outputSection.Visibility = Show(snapshot.IsAvailable);
         _inputSection.Visibility = Show(snapshot.IsAvailable);
+        if (Tiles is not null)
+        {
+            Tiles.Visibility = Show(snapshot.IsAvailable);
+            Tiles.Update(snapshot);
+        }
+
         UpdateCompactButton();
 
         // Пристрій за замовчуванням іде першим, решта — як у знімку (OrderBy стабільний).

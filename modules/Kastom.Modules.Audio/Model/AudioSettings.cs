@@ -11,7 +11,7 @@ public static class SettingKeys
     public const string Compact = "mixer-compact";
     public const string VolumeStep = "volume-step";
     public const string TrayIcon = "tray-icon";
-    public const string MicTrayIcon = "mic-tray-icon";
+    public const string TrayMicBadge = "tray-mic-badge";
     public const string PinTrayIcons = "pin-tray-icons";
     public const string Osd = "osd";
     public const string PerAppOutput = "per-app-output";
@@ -113,9 +113,9 @@ public static class AudioSettings
         });
         settings.Define(new ToggleSetting
         {
-            Key = SettingKeys.MicTrayIcon,
-            Title = Strings.MicTrayIconTitle,
-            Description = Strings.MicTrayIconDescription,
+            Key = SettingKeys.TrayMicBadge,
+            Title = Strings.TrayMicBadgeTitle,
+            Description = Strings.TrayMicBadgeDescription,
             Group = Strings.GroupTray,
             Default = true,
         });
@@ -205,7 +205,8 @@ public sealed class AudioOptions
 
     public bool TrayIcon => _settings.GetBool(SettingKeys.TrayIcon);
 
-    public bool MicTrayIcon => _settings.GetBool(SettingKeys.MicTrayIcon);
+    /// <summary>Червона позначка на значку звуку, поки мікрофон за замовчуванням вимкнено.</summary>
+    public bool TrayMicBadge => _settings.GetBool(SettingKeys.TrayMicBadge);
 
     public bool Osd => _settings.GetBool(SettingKeys.Osd);
 

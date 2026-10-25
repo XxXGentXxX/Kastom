@@ -34,8 +34,8 @@ internal static class Strings
     public static string GroupTray => Get(nameof(GroupTray));
     public static string TrayIconTitle => Get(nameof(TrayIconTitle));
     public static string TrayIconDescription => Get(nameof(TrayIconDescription));
-    public static string MicTrayIconTitle => Get(nameof(MicTrayIconTitle));
-    public static string MicTrayIconDescription => Get(nameof(MicTrayIconDescription));
+    public static string TrayMicBadgeTitle => Get(nameof(TrayMicBadgeTitle));
+    public static string TrayMicBadgeDescription => Get(nameof(TrayMicBadgeDescription));
     public static string PinTrayTitle => Get(nameof(PinTrayTitle));
     public static string PinTrayDescription => Get(nameof(PinTrayDescription));
     public static string GroupHints => Get(nameof(GroupHints));

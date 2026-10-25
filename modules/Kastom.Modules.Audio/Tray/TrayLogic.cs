@@ -3,14 +3,14 @@ using Kastom.Modules.Audio.Resources;
 
 namespace Kastom.Modules.Audio.Tray;
 
-/// <summary>Що має показувати один значок: чи видно його, який гліф і яка підказка.</summary>
-internal readonly record struct TrayIconState(bool Visible, TrayGlyph Glyph, string Tooltip);
+/// <summary>Що має показувати значок: чи видно його, який гліф, чи є позначка вимкненого мікрофона і яка підказка.</summary>
+internal readonly record struct TrayIconState(bool Visible, TrayGlyph Glyph, bool MicBadge, string Tooltip);
 
-/// <summary>Вигляд, під який намальовано <see cref="System.Drawing.Icon"/>: інший гліф, тема чи розмір — інша картинка.</summary>
-internal readonly record struct TrayLook(TrayGlyph Glyph, bool Light, int Size);
+/// <summary>Вигляд, під який намальовано <see cref="System.Drawing.Icon"/>: інший гліф, позначка, тема чи розмір — інша картинка.</summary>
+internal readonly record struct TrayLook(TrayGlyph Glyph, bool MicBadge, bool Light, int Size);
 
 /// <summary>
-/// Рішення про значки без жодного NotifyIcon, щоб їх можна було перевірити тестами: що показати, коли перемальовувати,
+/// Рішення про значок без жодного NotifyIcon, щоб їх можна було перевірити тестами: що показати, коли перемальовувати,
 /// як не дати помилці обробника вбити лаунчер.
 /// </summary>
 internal static class TrayLogic
@@ -18,7 +18,25 @@ internal static class TrayLogic
     // Windows не приймає довшу підказку.
     internal const int MaxTooltipLength = 127;
 
-    internal static string FitTooltip(string text) => text.Length > MaxTooltipLength ? text[..MaxTooltipLength] : text;
+    internal static string FitTooltip(string text) => Cut(text, MaxTooltipLength);
+
+    /// <summary>
+    /// Два рядки підказки (звук, мікрофон) у межах, які приймає Windows. Задовгі рядки обрізаються так, щоб короткий
+    /// рядок не втрачав нічого, а довгий не витіснив сусіда повністю.
+    /// </summary>
+    internal static string FitTooltip(string first, string second)
+    {
+        var budget = MaxTooltipLength - 1;
+        if (first.Length + second.Length > budget)
+        {
+            first = Cut(first, Math.Max(budget / 2, budget - second.Length));
+            second = Cut(second, budget - first.Length);
+        }
+
+        return first + "\n" + second;
+    }
+
+    private static string Cut(string text, int length) => text.Length > length ? text[..length] : text;
 
     internal static (TrayGlyph Glyph, string Text) DescribeSound(AudioDevice? output)
     {
@@ -33,24 +51,19 @@ internal static class TrayLogic
         return (glyph, Strings.Format(Strings.TrayVolumeTooltipFormat, output.Name, percent));
     }
 
-    internal static (TrayGlyph Glyph, string Text) DescribeMic(AudioDevice mic) =>
-        (mic.IsMuted ? TrayGlyph.MicOff : TrayGlyph.Mic,
-            Strings.Format(mic.IsMuted ? Strings.TrayMicOffTooltipFormat : Strings.TrayMicOnTooltipFormat, mic.Name));
+    /// <summary>Другий рядок підказки: стан і назва мікрофона за замовчуванням.</summary>
+    internal static string DescribeMic(AudioDevice mic) =>
+        Strings.Format(mic.IsMuted ? Strings.TrayMicOffTooltipFormat : Strings.TrayMicOnTooltipFormat, mic.Name);
 
-    /// <summary>Значок звуку є, поки його не вимкнено в налаштуваннях; без пристрою виводу він показує «немає пристрою».</summary>
-    internal static TrayIconState Sound(bool enabled, AudioDevice? output)
+    /// <summary>
+    /// Єдиний значок. Він є, поки його не вимкнено в налаштуваннях; без пристрою виводу показує «немає пристрою».
+    /// Підказка — два рядки (звук і мікрофон; без мікрофона лише звук). Позначка є, коли мікрофон вимкнено й її ввімкнено.
+    /// </summary>
+    internal static TrayIconState Icon(bool enabled, bool badgeEnabled, AudioDevice? output, AudioDevice? mic)
     {
-        var (glyph, text) = DescribeSound(output);
-        return new TrayIconState(enabled, glyph, FitTooltip(text));
-    }
-
-    /// <summary>Значок мікрофона є, коли його не вимкнено в налаштуваннях і є мікрофон за замовчуванням.</summary>
-    internal static TrayIconState Mic(bool enabled, AudioDevice? mic)
-    {
-        if (mic is null) return new TrayIconState(false, TrayGlyph.Mic, "");
-
-        var (glyph, text) = DescribeMic(mic);
-        return new TrayIconState(enabled, glyph, FitTooltip(text));
+        var (glyph, sound) = DescribeSound(output);
+        var tooltip = mic is null ? FitTooltip(sound) : FitTooltip(sound, DescribeMic(mic));
+        return new TrayIconState(enabled, glyph, badgeEnabled && mic?.IsMuted == true, tooltip);
     }
 
     /// <summary>Icon малюємо наново лише тоді, коли вигляд справді змінився (гучність 45 → 46 % гліф не міняє).</summary>

@@ -49,6 +49,24 @@
   <data name="MenuMicSlotFormat" xml:space="preserve"><value>Мікрофон {0} — {1}</value></data>
   <data name="SlotNotSet" xml:space="preserve"><value>не вибрано</value></data>
 
+  <!-- Відкриття програми з меню «⋯» -->
+  <data name="MenuOpenApp" xml:space="preserve"><value>Відкрити програму</value></data>
+  <data name="MenuRevealApp" xml:space="preserve"><value>Показати у Провіднику</value></data>
+  <data name="MenuOpenAppFormat" xml:space="preserve"><value>Відкрити {0}</value></data>
+  <data name="MenuSoundSettings" xml:space="preserve"><value>Параметри звуку Windows</value></data>
+
+  <!-- Плитки внизу панелі -->
+  <data name="TileSound" xml:space="preserve"><value>Звук</value></data>
+  <data name="TileMics" xml:space="preserve"><value>Мікрофони</value></data>
+  <data name="TileOn" xml:space="preserve"><value>Увімкнено</value></data>
+  <data name="TileOff" xml:space="preserve"><value>Вимкнено</value></data>
+  <data name="TileSoundMuteName" xml:space="preserve"><value>Вимкнути звук усіх пристроїв</value></data>
+  <data name="TileSoundUnmuteName" xml:space="preserve"><value>Увімкнути звук усіх пристроїв</value></data>
+  <data name="TileMicsMuteName" xml:space="preserve"><value>Вимкнути всі мікрофони</value></data>
+  <data name="TileMicsUnmuteName" xml:space="preserve"><value>Увімкнути всі мікрофони</value></data>
+  <data name="TileSoundToggleName" xml:space="preserve"><value>Звук усіх пристроїв</value></data>
+  <data name="TileMicsToggleName" xml:space="preserve"><value>Усі мікрофони</value></data>
+
   <!-- Налаштування мікрофона -->
   <data name="MicSettings" xml:space="preserve"><value>Налаштування мікрофона</value></data>
   <data name="MicLoading" xml:space="preserve"><value>Завантаження…</value></data>
